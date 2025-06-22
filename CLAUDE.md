@@ -10,7 +10,7 @@ Term2AI is a Python-based terminal wrapper providing **complete I/O control**, *
 
 ### Core Hijacking Capabilities
 - **Level 1**: PTY-based terminal session control (ptyprocess + blessed)
-- **Level 2**: Global input hijacking (keyboard + pynput) 
+- **Level 2**: Global input hijacking (keyboard + pynput)
 - **Level 3**: Advanced terminal control (blessed fullscreen + cursor management)
 - **Complete Integration**: All layers working together for total terminal domination
 
@@ -24,7 +24,7 @@ uv sync
 # Add new dependency
 uv add <package-name>
 
-# Add development dependency  
+# Add development dependency
 uv add --group dev <package-name>
 
 # Install Unix performance optimizations (uvloop, aiosignal)
@@ -65,7 +65,7 @@ uv run pytest tests/test_specific_file.py
 
 # Run tests with specific marker
 uv run pytest -m "unit"
-uv run pytest -m "integration" 
+uv run pytest -m "integration"
 uv run pytest -m "e2e"
 
 # Run tests excluding slow ones
@@ -132,7 +132,7 @@ uv run term2ai doctor                   # System diagnostics
 - Handles system-level keyboard/mouse event capture and analysis
 
 **AsyncIOManager Class** (planned: `src/term2ai/core/async_io.py`):
-- Asynchronous I/O operations with async context manager support  
+- Asynchronous I/O operations with async context manager support
 - Must implement `__aenter__`/`__aexit__` for async resource management
 - Handles non-blocking I/O, multiplexing, timeouts, and hijacked event processing
 
@@ -168,7 +168,7 @@ The project follows a checkpoint-based development approach with detailed specif
 
 **Development Philosophy** (from `plan/roadmap.md`):
 - **테스트 주도 개발**: Tests written first, implementation follows
-- **점진적 개발**: Incremental feature building through checkpoints  
+- **점진적 개발**: Incremental feature building through checkpoints
 - **타입 안전성**: Pydantic models with comprehensive type hints
 - **문서 주도**: Documentation maintained alongside code
 
@@ -193,7 +193,7 @@ Each checkpoint has specific acceptance criteria including:
 ### Testing Strategy
 
 - **Unit Tests**: Individual component testing with mocking
-- **Integration Tests**: Component interaction testing  
+- **Integration Tests**: Component interaction testing
 - **E2E Tests**: Full workflow testing with real terminals
 - **Performance Tests**: Latency and throughput verification
 - **Resource Safety Tests**: Context manager and exception safety verification

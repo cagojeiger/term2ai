@@ -190,7 +190,7 @@ uv sync --all-groups
 ```
 Level 3: GUI 터미널 하이재킹 (blessed)
          ↓
-Level 2: 전역 입력 하이재킹 (keyboard + pynput)  
+Level 2: 전역 입력 하이재킹 (keyboard + pynput)
          ↓
 Level 1: PTY 기반 하이재킹 (ptyprocess + pexpect)
          ↓
@@ -203,14 +203,14 @@ class CompleteTerminalHijacker:
     def __init__(self):
         # Level 1: PTY 하이재킹
         self.pty = pexpect.spawn('/bin/bash')
-        
-        # Level 2: 전역 입력 하이재킹  
+
+        # Level 2: 전역 입력 하이재킹
         self.keyboard_listener = keyboard.Listener(on_press=self.capture_key)
         self.mouse_listener = mouse.Listener(on_click=self.capture_mouse)
-        
+
         # Level 3: 터미널 제어
         self.terminal = Terminal()
-        
+
     async def start_complete_hijacking(self):
         # 모든 레벨의 하이재킹 동시 시작
         async with self:
@@ -269,7 +269,7 @@ kb_listener = pynput_keyboard.Listener(on_press=capture_detailed_key_event)
 #### 결정: blessed 기반 고급 터미널 제어
 **blessed 선택 근거:**
 - **풀스크린 모드**: 터미널 전체 화면 완전 제어
-- **고급 커서 제어**: 정밀한 커서 위치 및 모양 제어  
+- **고급 커서 제어**: 정밀한 커서 위치 및 모양 제어
 - **터미널 기능 감지**: 터미널별 기능 자동 감지 및 활용
 - **ANSI 최적화**: 효율적인 ANSI 시퀀스 생성
 
@@ -280,14 +280,14 @@ from blessed import Terminal
 class AdvancedTerminalControl:
     def __init__(self):
         self.terminal = Terminal()
-        
+
     def enter_fullscreen_mode(self):
         with self.terminal.fullscreen():
             # 전체 화면 모드에서 완전 제어
             with self.terminal.cbreak():
                 # 키보드 입력 즉시 처리
                 self.handle_terminal_interaction()
-                
+
     def precise_cursor_control(self, x: int, y: int):
         # 정확한 커서 위치 제어
         print(self.terminal.move_xy(x, y), end='')
@@ -333,7 +333,7 @@ class PTYWrapper:
     def __enter__(self) -> 'PTYWrapper':
         self.spawn()
         return self
-    
+
     def __exit__(self, exc_type, exc_val, exc_tb) -> None:
         self.terminate()
         self._cleanup_resources()
@@ -342,7 +342,7 @@ class AsyncIOManager:
     async def __aenter__(self) -> 'AsyncIOManager':
         await self._initialize_async_resources()
         return self
-    
+
     async def __aexit__(self, exc_type, exc_val, exc_tb) -> None:
         await self._cleanup_async_resources()
 ```
@@ -360,7 +360,7 @@ class AsyncIOManager:
 class BufferPool:
     def __init__(self):
         self._pool = collections.deque(maxlen=100)
-    
+
     def get_buffer(self, size: int) -> bytearray:
         if self._pool:
             buffer = self._pool.popleft()
@@ -496,7 +496,7 @@ class TerminalCapabilities:
         """터미널 타입 감지"""
         term_type = os.environ.get('TERM', 'unknown')
         return self.normalize_terminal_type(term_type)
-    
+
     def get_capabilities(self, terminal_type: str) -> Dict[str, bool]:
         """터미널별 기능 반환"""
         return self.capability_database.get(terminal_type, self.default_caps)

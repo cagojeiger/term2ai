@@ -308,13 +308,13 @@ class GlobalInputHijacker:
     async def start_keyboard_hijacking(self):
         # 전역 키보드 Hook 설정
         keyboard.on_press(self._on_key_press)
-        
+
         # pynput을 통한 정교한 제어
         self.kb_listener = pynput_keyboard.Listener(
             on_press=self._on_pynput_key_press
         )
         self.kb_listener.start()
-        
+
     async def start_mouse_hijacking(self):
         # 마우스 이벤트 캡처
         self.mouse_listener = mouse.Listener(

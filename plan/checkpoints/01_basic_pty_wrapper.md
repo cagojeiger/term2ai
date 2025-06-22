@@ -166,7 +166,7 @@
       def terminate(self) -> None
       def get_exit_code(self) -> Optional[int]
       def _cleanup_resources(self) -> None
-      
+
       # blessed 통합 메서드
       def get_terminal(self) -> Terminal
       def enter_fullscreen(self) -> BlessedTerminalControl
