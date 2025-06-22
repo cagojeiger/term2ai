@@ -46,6 +46,7 @@ Documentation = "https://term2ai.readthedocs.io"
 [dependency-groups]
 dev = [
     "black>=25.1.0",
+    "hypothesis>=6.135.14",
     "mypy>=1.16.1",
     "pre-commit>=4.2.0",
     "pytest>=8.4.1",
