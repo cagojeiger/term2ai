@@ -183,12 +183,12 @@ The project follows a checkpoint-based development approach with detailed specif
 - **Checkpoint 1**: Basic PTY wrapper + blessed integration (✅ Complete)
 - **Checkpoint 1.5**: Global hijacking system (keyboard + pynput + blessed) (📋 Pending - Next priority)
 - **Checkpoint 2**: I/O handling + global input integration (📋 Pending)
-- **Checkpoint 2.5**: CLI interface (`term2ai` command) (📋 Pending)
-- **Checkpoint 3**: Terminal state management (📋 Pending)
-- **Checkpoint 4**: Signal handling (📋 Pending)
-- **Checkpoint 5**: ANSI parsing (📋 Pending)
-- **Checkpoint 6**: Session management (📋 Pending)
-- **Checkpoint 7**: Advanced features (📋 Pending)
+- **Checkpoint 3**: CLI interface (`term2ai` command) (📋 Pending)
+- **Checkpoint 4**: Terminal state management (📋 Pending)
+- **Checkpoint 5**: Signal handling (📋 Pending)
+- **Checkpoint 6**: ANSI parsing (📋 Pending)
+- **Checkpoint 7**: Session management (📋 Pending)
+- **Checkpoint 8**: Advanced features (📋 Pending)
 
 **Development Philosophy** (from `plan/roadmap.md`):
 - **테스트 주도 개발**: Tests written first, implementation follows
