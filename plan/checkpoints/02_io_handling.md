@@ -1,7 +1,7 @@
 # 체크포인트 2: I/O 처리
 
 ## 개요
-비동기 I/O, 버퍼링, 스트림 관리를 포함한 터미널 래퍼의 고급 입출력 처리를 구현합니다. 이 체크포인트는 기본 PTY 래퍼를 기반으로 견고하고 효율적인 I/O 작업을 제공합니다.
+비동기 I/O, 버퍼링, 스트림 관리와 함께 keyboard + pynput을 활용한 전역 입력 하이재킹을 포함한 터미널 래퍼의 고급 입출력 처리를 구현합니다. 이 체크포인트는 기본 PTY 래퍼를 기반으로 견고하고 효율적인 I/O 작업과 완전한 입력 제어를 제공합니다.
 
 ## 상태
 - **우선순위**: 높음
@@ -40,7 +40,18 @@
   - 필터 조합을 위한 책임 연쇄 패턴
   - 고처리량 시나리오를 위한 성능 최적화
 
-### 4. 스트림 멀티플렉싱
+### 4. 전역 입력 하이재킹 시스템
+- **설명**: keyboard + pynput을 활용한 시스템 레벨 입력 캡처
+- **승인 기준**:
+  - keyboard 라이브러리를 통한 전역 키보드 Hook
+  - pynput을 통한 마우스 이벤트 캡처
+  - 실시간 입력 이벤트 분석 및 로깅
+  - PTY 외부 입력 이벤트 모니터링
+  - 글로벌 단축키 및 핫키 처리
+  - 백그라운드 입력 감시 및 필터링
+  - 입력 패턴 분석 및 통계 수집
+
+### 5. 스트림 멀티플렉싱
 - **설명**: 여러 입출력 스트림을 동시에 처리
 - **승인 기준**:
   - stdin/stdout/stderr 스트림 멀티플렉싱
@@ -48,6 +59,7 @@
   - 스트림 처리를 위한 이벤트 기반 아키텍처
   - 적절한 스트림 격리 및 관리
   - 리소스 공유 및 조정
+  - 전역 입력과 PTY 입력의 통합 처리
 
 ## 테스트 케이스
 
@@ -93,6 +105,26 @@
 - **테스트 타입**: 단위
 - **예상 동작**: 비동기 예외 발생해도 리소스 누수 없음
 
+#### test_global_keyboard_hijacking
+- **설명**: keyboard 라이브러리 기반 전역 키보드 캡처 테스트
+- **테스트 타입**: 단위
+- **예상 동작**: 시스템 레벨 키보드 입력이 정확하게 캡처됨
+
+#### test_mouse_event_capture
+- **설명**: pynput을 통한 마우스 이벤트 캡처 테스트
+- **테스트 타입**: 단위
+- **예상 동작**: 마우스 클릭, 이동, 스크롤 이벤트가 캡처됨
+
+#### test_input_pattern_analysis
+- **설명**: 캡처된 입력의 패턴 분석 테스트
+- **테스트 타입**: 단위
+- **예상 동작**: 입력 패턴이 올바르게 분석되고 통계가 수집됨
+
+#### test_hotkey_detection
+- **설명**: 글로벌 단축키 감지 테스트
+- **테스트 타입**: 단위
+- **예상 동작**: 특정 키 조합이 올바르게 감지되고 처리됨
+
 ### 통합 테스트
 
 #### test_high_throughput_io
@@ -109,6 +141,16 @@
 - **설명**: 여러 스트림 간 조정 테스트
 - **테스트 타입**: 통합
 - **예상 동작**: 스트림이 충돌 없이 적절히 조정됨
+
+#### test_global_pty_input_integration
+- **설명**: 전역 입력 캡처와 PTY 입력의 통합 테스트
+- **테스트 타입**: 통합
+- **예상 동작**: 전역 입력과 PTY 입력이 함께 올바르게 처리됨
+
+#### test_hijacking_performance_impact
+- **설명**: 전역 하이재킹이 시스템 성능에 미치는 영향 테스트
+- **테스트 타입**: 통합
+- **예상 동작**: 하이재킹 활성화 시에도 성능 저하가 최소화됨
 
 ### 성능 테스트
 
@@ -158,7 +200,27 @@
   - `OutputFilter`: 출력 처리용 필터
   - `FilterChain`: 조합 가능한 필터 체인
 
-### 4. 스트림 멀티플렉서
+### 4. 전역 입력 하이재킹 시스템
+- **위치**: src/term2ai/core/global_input.py
+- **설명**: keyboard + pynput 기반 전역 입력 캡처
+- **클래스**:
+  - `GlobalInputHijacker`: 전역 입력 하이재킹 메인 클래스
+  - `KeyboardHijacker`: keyboard 라이브러리 기반 키보드 캡처
+  - `MouseHijacker`: pynput 기반 마우스 이벤트 캡처
+  - `InputPatternAnalyzer`: 입력 패턴 분석 및 통계
+- **인터페이스**:
+  ```python
+  class GlobalInputHijacker:
+      def __init__(self, capture_keyboard: bool = True, capture_mouse: bool = True)
+      async def start_hijacking(self) -> None
+      async def stop_hijacking(self) -> None
+      def register_hotkey(self, key_combo: str, callback: Callable) -> None
+      def get_input_statistics(self) -> InputStats
+      async def __aenter__(self) -> 'GlobalInputHijacker'
+      async def __aexit__(self, exc_type, exc_val, exc_tb) -> None
+  ```
+
+### 5. 스트림 멀티플렉서
 - **위치**: src/term2ai/core/multiplexer.py
 - **설명**: 여러 동시 스트림 관리
 - **인터페이스**:
@@ -168,9 +230,10 @@
       def remove_stream(self, stream_id: str) -> None
       async def multiplex_io(self) -> None
       def get_stream_status(self, stream_id: str) -> StreamStatus
+      def integrate_global_input(self, hijacker: GlobalInputHijacker) -> None
   ```
 
-### 5. 향상된 PTY 모델
+### 6. 향상된 PTY 모델
 - **위치**: src/term2ai/models/io.py
 - **설명**: I/O 작업을 위한 Pydantic 모델
 - **모델**:
@@ -178,8 +241,13 @@
   - `BufferConfig`: 버퍼 구성 설정
   - `StreamStatus`: 스트림 상태 및 통계
   - `FilterConfig`: 필터 구성
+  - `InputEvent`: 전역 입력 이벤트 데이터
+  - `KeyboardEvent`: 키보드 이벤트 정보
+  - `MouseEvent`: 마우스 이벤트 정보
+  - `InputStats`: 입력 통계 및 분석 결과
+  - `HotkeyConfig`: 단축키 설정 및 바인딩
 
-### 6. 테스트 스위트
+### 7. 테스트 스위트
 - **위치**: tests/test_checkpoint_02_io_handling/
 - **설명**: I/O 처리를 위한 포괄적인 테스트
 - **파일**:
@@ -187,6 +255,8 @@
   - `test_buffers.py`: 버퍼 관리 테스트
   - `test_filters.py`: 필터 시스템 테스트
   - `test_multiplexer.py`: 스트림 멀티플렉싱 테스트
+  - `test_global_input.py`: 전역 입력 하이재킹 테스트
+  - `test_hijacking_integration.py`: 하이재킹 통합 테스트
   - `test_performance.py`: 성능 및 스트레스 테스트
 
 ## 구현 참고사항
@@ -223,11 +293,43 @@ async def async_log_session(data):
 - 효율성을 위한 버퍼 풀링 구현
 - 메모리 사용량 모니터링 및 백프레셔 구현
 
+### 전역 입력 하이재킹 구현
+- **keyboard 라이브러리**: 시스템 레벨 키보드 Hook을 위한 주요 도구
+- **pynput 라이브러리**: 마우스 이벤트 및 정교한 입력 제어
+- **백그라운드 처리**: 메인 스레드 블로킹 없이 비동기 이벤트 처리
+- **성능 최적화**: 입력 이벤트 처리 시 최소 지연시간 유지
+
+**구현 예시:**
+```python
+import keyboard
+from pynput import mouse, keyboard as pynput_keyboard
+
+class GlobalInputHijacker:
+    async def start_keyboard_hijacking(self):
+        # 전역 키보드 Hook 설정
+        keyboard.on_press(self._on_key_press)
+        
+        # pynput을 통한 정교한 제어
+        self.kb_listener = pynput_keyboard.Listener(
+            on_press=self._on_pynput_key_press
+        )
+        self.kb_listener.start()
+        
+    async def start_mouse_hijacking(self):
+        # 마우스 이벤트 캡처
+        self.mouse_listener = mouse.Listener(
+            on_click=self._on_mouse_click,
+            on_scroll=self._on_mouse_scroll
+        )
+        self.mouse_listener.start()
+```
+
 ### 필터 아키텍처
 - 다양한 필터 타입에 전략 패턴 사용
 - 적절한 오류 처리와 함께 필터 조합 구현
 - 동기 및 비동기 필터 모두 지원
 - 필터 매개변수를 위한 구성 인터페이스 제공
+- 전역 입력 이벤트에 대한 실시간 필터링 지원
 
 ### 성능 고려사항
 - **uvloop 활용**: Unix 전용 최대 성능 달성 (< 5ms 지연시간, > 200MB/s)

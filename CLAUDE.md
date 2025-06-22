@@ -4,7 +4,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Term2AI is a Python-based terminal wrapper providing complete I/O control, AI integration, and advanced terminal emulation capabilities. The project follows a test-driven development (TDD) approach with 8 planned checkpoints for incremental feature development.
+Term2AI is a Python-based terminal wrapper providing **complete I/O control**, **global input hijacking**, **AI integration**, and **advanced terminal emulation** capabilities. The project implements a multi-layer hijacking architecture for 100% terminal control and follows a test-driven development (TDD) approach with 8 planned checkpoints for incremental feature development.
+
+### Core Hijacking Capabilities
+- **Level 1**: PTY-based terminal session control (ptyprocess + blessed)
+- **Level 2**: Global input hijacking (keyboard + pynput) 
+- **Level 3**: Advanced terminal control (blessed fullscreen + cursor management)
+- **Complete Integration**: All layers working together for total terminal domination
 
 ## Development Commands
 
@@ -21,6 +27,9 @@ uv add --group dev <package-name>
 
 # Install Unix performance optimizations (uvloop, aiosignal)
 uv sync --group performance
+
+# Install complete terminal hijacking features (keyboard, pynput, blessed)
+uv sync --group hijacking
 
 # Install all optional dependencies
 uv sync --all-groups
@@ -83,33 +92,47 @@ uv run term2ai --help
 
 3. **Type Safety**: Comprehensive type hints throughout with Pydantic models for data validation and mypy for static type checking.
 
-4. **Modular Architecture**: Layered system with clear separation of concerns:
-   - PTY Wrapper Core (lowest level)
-   - I/O Management & Terminal State
-   - Processing Layer (ANSI parsing, signal handling, filtering)
-   - Feature Layer (sessions, AI integration, networking)
-   - Plugin System
-   - User Interface Layer
+4. **Multi-Layer Hijacking Architecture**: Layered system with complete terminal control:
+   - **Level 0**: Operating System (Unix)
+   - **Level 1**: PTY Wrapper Core + blessed integration (lowest level)
+   - **Level 2**: Global Input Hijacking (keyboard + pynput)
+   - **Level 3**: Advanced Terminal Control (blessed fullscreen + UI)
+   - **Processing Layer**: ANSI parsing, signal handling, filtering
+   - **Feature Layer**: sessions, AI integration, networking
+   - **Plugin System**: extensible hijacking capabilities
+   - **User Interface Layer**: complete terminal domination
 
 ### Key Components (Planned Architecture)
 
+**CompleteHijacker Class** (planned: `src/term2ai/core/complete_hijacker.py`):
+- Main hijacking orchestration class with async context manager support
+- Must implement `__aenter__`/`__aexit__` for automatic hijacking cleanup
+- Integrates all hijacking layers (PTY + Global Input + Terminal Control)
+
 **PTYWrapper Class** (planned: `src/term2ai/core/pty_wrapper.py`):
-- Core terminal wrapper with context manager support
+- Core terminal wrapper with blessed integration and context manager support
 - Must implement `__enter__`/`__exit__` for automatic resource cleanup
-- Handles process lifecycle, basic I/O, and error handling
+- Handles process lifecycle, basic I/O, error handling, and terminal control
+
+**GlobalInputHijacker Class** (planned: `src/term2ai/core/global_input.py`):
+- Global input hijacking with keyboard + pynput integration
+- Must implement async context manager for safe hijacking lifecycle
+- Handles system-level keyboard/mouse event capture and analysis
 
 **AsyncIOManager Class** (planned: `src/term2ai/core/async_io.py`):
 - Asynchronous I/O operations with async context manager support  
 - Must implement `__aenter__`/`__aexit__` for async resource management
-- Handles non-blocking I/O, multiplexing, and timeouts
+- Handles non-blocking I/O, multiplexing, timeouts, and hijacked event processing
 
 **SessionManager & SessionContext** (planned):
 - Session lifecycle management through context managers
 - Automatic session cleanup and persistence handling
+- Hijacked data integration and analysis
 
 **ConfigManager & TempConfigContext** (planned):
 - Configuration management with temporary override support
 - Context manager for temporary config changes that auto-restore
+- Hijacking feature configuration and preferences
 
 **Current Implementation Status**: Only basic module structure exists in `src/term2ai/`. Core classes are not yet implemented.
 
@@ -119,8 +142,9 @@ The project follows a checkpoint-based development approach with detailed specif
 
 **Implementation Status:**
 - **Checkpoint 0**: Project setup (✅ Complete)
-- **Checkpoint 1**: Basic PTY wrapper (📋 Pending - Next priority)
-- **Checkpoint 2**: I/O handling (📋 Pending)
+- **Checkpoint 1**: Basic PTY wrapper + blessed integration (📋 Pending - Next priority)
+- **Checkpoint 1.5**: Global hijacking system (keyboard + pynput + blessed) (📋 Pending)
+- **Checkpoint 2**: I/O handling + global input integration (📋 Pending)
 - **Checkpoint 3**: Terminal state management (📋 Pending)
 - **Checkpoint 4**: Signal handling (📋 Pending)
 - **Checkpoint 5**: ANSI parsing (📋 Pending)
@@ -192,6 +216,11 @@ The project maintains comprehensive documentation in `docs/` and `plan/`:
 **Performance Dependencies (Unix-only)**:
 - `uvloop>=0.19.0`: High-performance event loop for asyncio
 - `aiosignal>=1.3.1`: Asynchronous signal handling
+
+**Hijacking Dependencies (Complete Terminal Control)**:
+- `keyboard>=0.13.5`: Global keyboard event capture and system-level hooks
+- `pynput>=1.7.6`: Cross-platform mouse and advanced input control
+- `blessed>=1.20.0`: Advanced terminal control and fullscreen capabilities
 
 **Development Dependencies**:
 - `pytest>=8.4.1` with `pytest-asyncio>=1.0.0`: Testing framework

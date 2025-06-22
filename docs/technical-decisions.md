@@ -154,6 +154,7 @@ with PTYWrapper() as pty:
 **구조:**
 - **핵심 의존성**: 모든 Unix 사용자에게 필수 (aiofiles 포함)
 - **성능 그룹**: 최적 성능을 위한 필수 (uvloop, aiosignal)
+- **하이재킹 그룹**: 완전한 터미널 하이재킹 기능 (keyboard, pynput, blessed)
 - **개발 그룹**: 개발 및 테스트 도구
 
 **설치 전략:**
@@ -164,6 +165,9 @@ uv sync
 # 최적 성능 (권장)
 uv sync --group performance
 
+# 완전 하이재킹 기능
+uv sync --group hijacking
+
 # 모든 기능 포함
 uv sync --all-groups
 ```
@@ -172,6 +176,132 @@ uv sync --all-groups
 - **최적화**: Unix 계열 전용 최적화로 최대 성능 달성
 - **단순성**: 플랫폼 분기 제거로 복잡성 감소
 - **성능 우선**: 고성능 터미널 래퍼를 위한 의존성 선택
+- **하이재킹**: 완전한 터미널 I/O 제어를 위한 전문 라이브러리
+
+### 9. 터미널 하이재킹 아키텍처 선택
+
+#### 결정: 다층 하이재킹 아키텍처
+**근거:**
+- **PTY 기반 하이재킹**: ptyprocess로 터미널 세션 내부 완전 제어
+- **전역 입력 하이재킹**: keyboard + pynput으로 시스템 레벨 입력 캡처
+- **고급 터미널 제어**: blessed로 터미널 기능 완전 활용
+
+**아키텍처 계층:**
+```
+Level 3: GUI 터미널 하이재킹 (blessed)
+         ↓
+Level 2: 전역 입력 하이재킹 (keyboard + pynput)  
+         ↓
+Level 1: PTY 기반 하이재킹 (ptyprocess + pexpect)
+         ↓
+Level 0: 운영 체제 (Unix)
+```
+
+**구현 전략:**
+```python
+class CompleteTerminalHijacker:
+    def __init__(self):
+        # Level 1: PTY 하이재킹
+        self.pty = pexpect.spawn('/bin/bash')
+        
+        # Level 2: 전역 입력 하이재킹  
+        self.keyboard_listener = keyboard.Listener(on_press=self.capture_key)
+        self.mouse_listener = mouse.Listener(on_click=self.capture_mouse)
+        
+        # Level 3: 터미널 제어
+        self.terminal = Terminal()
+        
+    async def start_complete_hijacking(self):
+        # 모든 레벨의 하이재킹 동시 시작
+        async with self:
+            # PTY + 전역 입력 + 터미널 제어 = 100% 커버리지
+            pass
+```
+
+**트레이드오프:**
+- **복잡성 증가**: 다층 아키텍처로 인한 복잡도 상승
+- **완전한 제어**: 터미널 I/O의 100% 하이재킹 달성
+- **성능 영향**: 전역 입력 캡처로 인한 소량의 성능 오버헤드
+- **보안 고려**: 시스템 레벨 접근으로 인한 권한 관리 필요
+
+#### 대안 고려사항
+- **PTY만 사용**: 단순하지만 터미널 외부 입력 캡처 불가
+- **pyautogui 사용**: GUI 자동화 가능하지만 신뢰성 문제
+- **저수준 Hook**: 플랫폼별 구현 필요로 복잡성 증가
+
+### 10. 전역 입력 캡처 라이브러리 비교
+
+#### 결정: keyboard + pynput 조합 사용
+**keyboard 선택 근거:**
+- **전역 키보드 Hook**: 모든 키보드 입력을 시스템 레벨에서 캡처
+- **실시간 처리**: 낮은 지연시간으로 실시간 키 이벤트 처리
+- **Unix 최적화**: Linux/macOS에서 최적의 성능
+
+**pynput 선택 근거:**
+- **마우스 + 키보드**: 통합된 입력 장치 제어
+- **크로스 플랫폼**: Unix 계열에서 일관된 API 제공
+- **이벤트 리스너**: 비침투적인 백그라운드 모니터링
+
+**조합 사용 이유:**
+```python
+# keyboard: 전역 키보드 Hook (빠른 응답)
+import keyboard
+keyboard.on_press(lambda key: capture_keyboard_event(key))
+
+# pynput: 마우스 + 정교한 키보드 제어
+from pynput import mouse, keyboard as pynput_keyboard
+mouse_listener = mouse.Listener(on_click=capture_mouse_event)
+kb_listener = pynput_keyboard.Listener(on_press=capture_detailed_key_event)
+```
+
+**트레이드오프:**
+- **라이브러리 중복**: 두 라이브러리 동시 사용으로 메모리 사용량 증가
+- **기능 보완**: keyboard의 속도 + pynput의 정교함 = 완벽한 하이재킹
+- **유지보수**: 두 라이브러리 모두 관리 필요
+
+#### 대안 고려사항
+- **keyboard만 사용**: 마우스 이벤트 캡처 불가
+- **pynput만 사용**: 전역 Hook 성능이 keyboard보다 느림
+- **pyautogui**: GUI 자동화는 가능하지만 안정성 문제
+
+### 11. GUI vs PTY 기반 터미널 제어
+
+#### 결정: blessed 기반 고급 터미널 제어
+**blessed 선택 근거:**
+- **풀스크린 모드**: 터미널 전체 화면 완전 제어
+- **고급 커서 제어**: 정밀한 커서 위치 및 모양 제어  
+- **터미널 기능 감지**: 터미널별 기능 자동 감지 및 활용
+- **ANSI 최적화**: 효율적인 ANSI 시퀀스 생성
+
+**구현 전략:**
+```python
+from blessed import Terminal
+
+class AdvancedTerminalControl:
+    def __init__(self):
+        self.terminal = Terminal()
+        
+    def enter_fullscreen_mode(self):
+        with self.terminal.fullscreen():
+            # 전체 화면 모드에서 완전 제어
+            with self.terminal.cbreak():
+                # 키보드 입력 즉시 처리
+                self.handle_terminal_interaction()
+                
+    def precise_cursor_control(self, x: int, y: int):
+        # 정확한 커서 위치 제어
+        print(self.terminal.move_xy(x, y), end='')
+```
+
+**트레이드오프:**
+- **터미널 의존성**: 터미널 기능에 따른 제약 존재
+- **완전한 제어**: PTY + blessed 조합으로 모든 터미널 기능 활용
+- **성능 최적화**: 효율적인 ANSI 시퀀스로 빠른 화면 업데이트
+
+#### 대안 고려사항
+- **curses**: Python 내장이지만 기능 제한적
+- **rich**: 아름다운 출력이지만 실시간 제어 부족
+- **직접 ANSI**: 구현 복잡도 높고 호환성 문제
 
 ## 성능 관련 결정사항
 

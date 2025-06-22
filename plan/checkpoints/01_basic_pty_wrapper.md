@@ -1,7 +1,7 @@
 # 체크포인트 1: 기본 PTY 래퍼
 
 ## 개요
-셸 프로세스를 생성하고 기본 입출력 작업을 처리할 수 있는 최소한의 의사 터미널(PTY) 래퍼를 구현합니다. 이는 모든 터미널 래핑 기능의 기반이 됩니다.
+셸 프로세스를 생성하고 기본 입출력 작업을 처리할 수 있는 의사 터미널(PTY) 래퍼를 구현합니다. blessed 통합을 통해 고급 터미널 제어 기능도 포함하여 모든 터미널 래핑 기능의 기반이 됩니다.
 
 ## 상태
 - **우선순위**: 높음
@@ -38,12 +38,23 @@
   - 종료 시 리소스 정리
   - 프로세스 재시작 지원
 
-### 4. 오류 처리 및 리소스 관리
+### 4. blessed 기반 터미널 제어 통합
+- **설명**: blessed 라이브러리를 활용한 고급 터미널 제어 기능 통합
+- **승인 기준**:
+  - blessed Terminal 객체 초기화 및 관리
+  - 터미널 기능 감지 (색상 깊이, 크기, 기능)
+  - 전체 화면 모드 지원 (fullscreen context manager)
+  - 고급 커서 제어 (정확한 위치 지정, 모양 변경)
+  - 효율적인 ANSI 시퀀스 생성
+  - 터미널별 호환성 처리
+
+### 5. 오류 처리 및 리소스 관리
 - **설명**: PTY 작업을 위한 견고한 오류 처리 및 자동 리소스 관리
 - **승인 기준**:
   - PTY 생성 실패 처리
   - I/O 작업 오류 관리
   - 프로세스 생성 실패 우아하게 처리
+  - blessed 터미널 제어 오류 처리
   - 적절한 예외 타입 및 메시지
   - 디버깅을 위한 로깅
   - Context manager를 통한 자동 리소스 정리
@@ -78,6 +89,21 @@
 - **테스트 타입**: 단위
 - **예상 동작**: 프로세스 종료가 감지되고 처리됨
 
+#### test_blessed_terminal_integration
+- **설명**: blessed Terminal 객체 초기화 및 기능 테스트
+- **테스트 타입**: 단위
+- **예상 동작**: blessed Terminal이 올바르게 초기화되고 기본 기능 작동
+
+#### test_terminal_capabilities_detection
+- **설명**: 터미널 기능 감지 테스트
+- **테스트 타입**: 단위
+- **예상 동작**: 터미널 크기, 색상 깊이 등 기능이 올바르게 감지됨
+
+#### test_cursor_control
+- **설명**: blessed를 통한 커서 제어 테스트
+- **테스트 타입**: 단위
+- **예상 동작**: 커서 위치 이동 및 제어가 올바르게 작동함
+
 ### 통합 테스트
 
 #### test_echo_command
@@ -100,6 +126,16 @@
 - **테스트 타입**: 통합
 - **예상 동작**: with 문 종료 시 자동으로 리소스 정리됨
 
+#### test_blessed_fullscreen_mode
+- **설명**: blessed 전체 화면 모드 통합 테스트
+- **테스트 타입**: 통합
+- **예상 동작**: 전체 화면 모드 진입/종료가 올바르게 작동함
+
+#### test_pty_blessed_integration
+- **설명**: PTY와 blessed 통합 작동 테스트
+- **테스트 타입**: 통합
+- **예상 동작**: PTY 출력과 blessed 터미널 제어가 함께 작동함
+
 #### test_exception_safety
 - **설명**: 예외 발생 시 리소스 정리 테스트
 - **테스트 타입**: 통합
@@ -116,7 +152,7 @@
 
 ### 1. PTYWrapper 클래스
 - **위치**: src/term2ai/core/pty_wrapper.py
-- **설명**: 핵심 PTY 래퍼 구현
+- **설명**: blessed 통합 PTY 래퍼 구현
 - **인터페이스**:
   ```python
   class PTYWrapper:
@@ -130,6 +166,13 @@
       def terminate(self) -> None
       def get_exit_code(self) -> Optional[int]
       def _cleanup_resources(self) -> None
+      
+      # blessed 통합 메서드
+      def get_terminal(self) -> Terminal
+      def enter_fullscreen(self) -> BlessedTerminalControl
+      def move_cursor(self, x: int, y: int) -> None
+      def get_terminal_size(self) -> Tuple[int, int]
+      def detect_capabilities(self) -> Dict[str, bool]
   ```
 
 ### 2. 프로세스 관리 유틸리티
@@ -149,18 +192,29 @@
   - `test_integration.py`: 통합 테스트
   - `conftest.py`: 테스트 픽스처 및 구성
 
-### 4. 타입 정의
+### 4. blessed 터미널 제어 클래스
+- **위치**: src/term2ai/core/blessed_control.py
+- **설명**: blessed 기반 터미널 제어 구현
+- **클래스**:
+  - `BlessedTerminalControl`: 고급 터미널 제어
+  - `TerminalCapabilities`: 터미널 기능 감지
+  - `CursorController`: 커서 제어 및 관리
+
+### 5. 타입 정의
 - **위치**: src/term2ai/models/pty.py
 - **설명**: PTY 작업을 위한 Pydantic 모델
 - **모델**:
   - `PTYConfig`: PTY 래퍼 구성
   - `ProcessState`: 프로세스 상태 추적
   - `IOOperation`: 입출력 작업 레코드
+  - `TerminalInfo`: blessed 터미널 정보
+  - `TerminalCapabilities`: 터미널 기능 정의
 
 ## 구현 참고사항
 
 ### 핵심 의존성
 - **ptyprocess**: Unix/Linux 전용 PTY 처리 라이브러리
+- **blessed**: 고급 터미널 제어 및 기능 감지
 - **pexpect**: Unix 계열 고급 PTY 작업 최적화
 - **typing**: Unix 네이티브 성능을 위한 타입 힌트
 

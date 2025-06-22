@@ -440,6 +440,222 @@ class TempConfigContext:
             self.config_manager.set_setting(key, original_value)
 ```
 
+### 8. 완전 터미널 하이재킹 API
+
+#### CompleteHijacker 클래스
+```python
+class CompleteHijacker:
+    """모든 레벨의 터미널 하이재킹을 통합하는 메인 클래스"""
+    
+    def __init__(
+        self,
+        shell: str = "/bin/bash",
+        enable_global_input: bool = True,
+        enable_blessed_control: bool = True,
+        **kwargs
+    ) -> None:
+        """
+        완전 하이재킹 시스템 초기화
+        
+        Args:
+            shell: 실행할 쉘 경로
+            enable_global_input: 전역 입력 캡처 활성화 여부
+            enable_blessed_control: blessed 터미널 제어 활성화 여부
+            **kwargs: 추가 설정 옵션
+        """
+        
+    async def __aenter__(self) -> 'CompleteHijacker':
+        """
+        비동기 context manager 진입점
+        
+        Returns:
+            자기 자신 (CompleteHijacker 인스턴스)
+        """
+        await self.start_complete_hijacking()
+        return self
+        
+    async def __aexit__(self, exc_type, exc_val, exc_tb) -> None:
+        """
+        비동기 context manager 종료점, 모든 하이재킹 자동 정리
+        
+        Args:
+            exc_type: 예외 타입
+            exc_val: 예외 값  
+            exc_tb: 예외 트레이스백
+        """
+        await self.stop_complete_hijacking()
+        await self._cleanup_all_resources()
+        
+    async def start_complete_hijacking(self) -> None:
+        """모든 레벨의 하이재킹 동시 시작"""
+        await self.start_pty_hijacking()      # Level 1: PTY 기반
+        await self.start_global_hijacking()   # Level 2: 전역 입력
+        await self.start_terminal_control()   # Level 3: 터미널 제어
+        
+    async def stop_complete_hijacking(self) -> None:
+        """모든 레벨의 하이재킹 안전하게 중지"""
+        await self.stop_terminal_control()    # Level 3 먼저 정리
+        await self.stop_global_hijacking()    # Level 2 정리
+        await self.stop_pty_hijacking()       # Level 1 마지막 정리
+
+class GlobalInputHijacker:
+    """전역 입력 하이재킹을 위한 클래스"""
+    
+    def __init__(self, capture_keyboard: bool = True, capture_mouse: bool = True):
+        """
+        전역 입력 하이재킹 초기화
+        
+        Args:
+            capture_keyboard: 키보드 캡처 활성화
+            capture_mouse: 마우스 캡처 활성화
+        """
+        
+    async def start_keyboard_hijacking(self) -> None:
+        """키보드 전역 캡처 시작"""
+        from keyboard import Listener as KeyboardListener
+        self.keyboard_listener = KeyboardListener(
+            on_press=self._on_key_press,
+            on_release=self._on_key_release
+        )
+        self.keyboard_listener.start()
+        
+    async def start_mouse_hijacking(self) -> None:
+        """마우스 전역 캡처 시작"""
+        from pynput.mouse import Listener as MouseListener
+        self.mouse_listener = MouseListener(
+            on_click=self._on_mouse_click,
+            on_scroll=self._on_mouse_scroll
+        )
+        self.mouse_listener.start()
+        
+    def _on_key_press(self, key) -> None:
+        """키보드 입력 이벤트 핸들러"""
+        # 키 입력 분석 및 로깅
+        self.log_keyboard_event('press', key)
+        self.analyze_input_pattern(key)
+        
+    def _on_mouse_click(self, x: int, y: int, button, pressed: bool) -> None:
+        """마우스 클릭 이벤트 핸들러"""
+        # 마우스 이벤트 분석 및 로깅
+        self.log_mouse_event('click', x, y, button, pressed)
+
+class BlessedTerminalControl:
+    """blessed 기반 고급 터미널 제어 클래스"""
+    
+    def __init__(self):
+        """blessed 터미널 제어 초기화"""
+        from blessed import Terminal
+        self.terminal = Terminal()
+        
+    def __enter__(self) -> 'BlessedTerminalControl':
+        """Context manager로 전체 화면 모드 진입"""
+        self._fullscreen_context = self.terminal.fullscreen()
+        self._cbreak_context = self.terminal.cbreak()
+        
+        self._fullscreen_context.__enter__()
+        self._cbreak_context.__enter__()
+        return self
+        
+    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+        """전체 화면 모드 종료 및 터미널 복원"""
+        if hasattr(self, '_cbreak_context'):
+            self._cbreak_context.__exit__(exc_type, exc_val, exc_tb)
+        if hasattr(self, '_fullscreen_context'):
+            self._fullscreen_context.__exit__(exc_type, exc_val, exc_tb)
+            
+    def move_cursor(self, x: int, y: int) -> None:
+        """커서를 지정된 위치로 이동"""
+        print(self.terminal.move_xy(x, y), end='')
+        
+    def clear_screen(self) -> None:
+        """화면 전체 지우기"""
+        print(self.terminal.clear, end='')
+        
+    def set_colors(self, fg_color: str, bg_color: str = None) -> str:
+        """색상 설정 문자열 반환"""
+        color_str = getattr(self.terminal, fg_color, '')
+        if bg_color:
+            color_str += getattr(self.terminal, f'on_{bg_color}', '')
+        return color_str
+
+class HijackingEventHandler:
+    """하이재킹된 이벤트 처리를 위한 기본 클래스"""
+    
+    async def on_keyboard_input(self, event: KeyboardEvent) -> None:
+        """키보드 입력 이벤트 처리"""
+        pass
+        
+    async def on_mouse_input(self, event: MouseEvent) -> None:
+        """마우스 입력 이벤트 처리"""
+        pass
+        
+    async def on_terminal_output(self, data: str) -> None:
+        """터미널 출력 이벤트 처리"""
+        pass
+        
+    async def on_ansi_sequence(self, sequence: ANSISequence) -> None:
+        """ANSI 이스케이프 시퀀스 이벤트 처리"""
+        pass
+```
+
+#### 사용 예제
+
+##### 기본 완전 하이재킹 사용
+```python
+async def basic_complete_hijacking():
+    """기본적인 완전 하이재킹 예제"""
+    async with CompleteHijacker() as hijacker:
+        # 모든 레벨의 하이재킹이 자동으로 시작됨
+        # Level 1: PTY 기반 터미널 세션 제어
+        # Level 2: 전역 키보드/마우스 입력 캡처
+        # Level 3: blessed 기반 터미널 화면 제어
+        
+        # 하이재킹된 데이터에 대한 실시간 처리
+        await hijacker.process_hijacked_data()
+    # context manager 종료 시 모든 하이재킹 자동 정리
+```
+
+##### 선택적 하이재킹 기능
+```python
+async def selective_hijacking():
+    """선택적 하이재킹 기능 예제"""
+    hijacker = CompleteHijacker(
+        enable_global_input=True,    # 전역 입력만 활성화
+        enable_blessed_control=False # 터미널 제어는 비활성화
+    )
+    
+    async with hijacker:
+        # PTY + 전역 입력만 활성화된 상태
+        await hijacker.analyze_input_patterns()
+```
+
+##### 커스텀 이벤트 핸들러
+```python
+class CustomHijackingHandler(HijackingEventHandler):
+    """사용자 정의 하이재킹 이벤트 핸들러"""
+    
+    async def on_keyboard_input(self, event: KeyboardEvent) -> None:
+        """특정 키 조합 감지 및 처리"""
+        if event.key == 'ctrl+alt+h':
+            print("하이재킹 모드 토글!")
+            await self.toggle_hijacking_mode()
+            
+    async def on_terminal_output(self, data: str) -> None:
+        """민감한 정보 필터링"""
+        if 'password' in data.lower():
+            # 비밀번호 출력 시 마스킹 처리
+            filtered_data = self.mask_sensitive_data(data)
+            await self.log_filtered_output(filtered_data)
+
+async def custom_handler_example():
+    """커스텀 핸들러 사용 예제"""
+    handler = CustomHijackingHandler()
+    
+    async with CompleteHijacker() as hijacker:
+        hijacker.set_event_handler(handler)
+        await hijacker.start_monitoring()
+```
+
 ## 오류 처리 API
 
 ### 예외 계층 구조
