@@ -43,6 +43,28 @@ class PTYWrapper:
             **kwargs: 추가 설정 옵션
         """
     
+    def __enter__(self) -> 'PTYWrapper':
+        """
+        Context manager 진입점
+        
+        Returns:
+            자기 자신 (PTYWrapper 인스턴스)
+        """
+        self.spawn()
+        return self
+    
+    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+        """
+        Context manager 종료점, 리소스 자동 정리
+        
+        Args:
+            exc_type: 예외 타입
+            exc_val: 예외 값
+            exc_tb: 예외 트레이스백
+        """
+        self.terminate()
+        self._cleanup_resources()
+    
     def spawn(self) -> None:
         """프로세스를 의사 터미널에서 실행"""
     
@@ -76,6 +98,9 @@ class PTYWrapper:
     
     def get_exit_code(self) -> Optional[int]:
         """프로세스 종료 코드 반환"""
+    
+    def _cleanup_resources(self) -> None:
+        """내부 리소스 정리 (파일 디스크립터, 버퍼 등)"""
 ```
 
 ### 2. 비동기 I/O 관리 API
@@ -84,6 +109,27 @@ class PTYWrapper:
 ```python
 class AsyncIOManager:
     """비동기 I/O 작업 관리자"""
+    
+    async def __aenter__(self) -> 'AsyncIOManager':
+        """
+        비동기 context manager 진입점
+        
+        Returns:
+            자기 자신 (AsyncIOManager 인스턴스)
+        """
+        await self._initialize_async_resources()
+        return self
+    
+    async def __aexit__(self, exc_type, exc_val, exc_tb) -> None:
+        """
+        비동기 context manager 종료점, 비동기 리소스 정리
+        
+        Args:
+            exc_type: 예외 타입
+            exc_val: 예외 값
+            exc_tb: 예외 트레이스백
+        """
+        await self._cleanup_async_resources()
     
     async def read_async(self, fd: int, size: int = 1024) -> bytes:
         """
@@ -123,6 +169,12 @@ class AsyncIOManager:
         Raises:
             asyncio.TimeoutError: 타임아웃 발생 시
         """
+    
+    async def _initialize_async_resources(self) -> None:
+        """비동기 리소스 초기화"""
+    
+    async def _cleanup_async_resources(self) -> None:
+        """비동기 리소스 정리"""
 ```
 
 ### 3. 터미널 상태 관리 API
@@ -239,6 +291,35 @@ class SessionManager:
         Args:
             session_id: 삭제할 세션 ID
         """
+    
+    def session_context(self, config: SessionConfig) -> SessionContext:
+        """
+        세션 context manager 생성
+        
+        Args:
+            config: 세션 설정
+            
+        Returns:
+            세션 context manager
+        """
+
+class SessionContext:
+    """세션 생명주기 관리를 위한 Context Manager"""
+    
+    def __init__(self, manager: SessionManager, config: SessionConfig):
+        self.manager = manager
+        self.config = config
+        self.session: Optional[Session] = None
+    
+    def __enter__(self) -> Session:
+        """세션 생성 및 시작"""
+        self.session = self.manager.create_session(self.config)
+        return self.session
+    
+    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+        """세션 자동 정리 및 삭제"""
+        if self.session:
+            self.manager.delete_session(self.session.id)
 ```
 
 ### 6. 플러그인 시스템 API
@@ -326,6 +407,37 @@ class ConfigManager:
     
     def set_setting(self, key: str, value: Any) -> None:
         """설정 값 변경"""
+    
+    def temporary_config(self, **overrides) -> TempConfigContext:
+        """
+        임시 설정 오버라이드를 위한 context manager
+        
+        Args:
+            **overrides: 임시로 설정할 키-값 쌍
+            
+        Returns:
+            임시 설정 context manager
+        """
+
+class TempConfigContext:
+    """임시 설정 관리를 위한 Context Manager"""
+    
+    def __init__(self, config_manager: ConfigManager, overrides: Dict[str, Any]):
+        self.config_manager = config_manager
+        self.overrides = overrides
+        self.original_values: Dict[str, Any] = {}
+    
+    def __enter__(self) -> ConfigManager:
+        """임시 설정 적용"""
+        for key, value in self.overrides.items():
+            self.original_values[key] = self.config_manager.get_setting(key)
+            self.config_manager.set_setting(key, value)
+        return self.config_manager
+    
+    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+        """원래 설정 복원"""
+        for key, original_value in self.original_values.items():
+            self.config_manager.set_setting(key, original_value)
 ```
 
 ## 오류 처리 API
@@ -401,39 +513,45 @@ class NetworkServer:
 
 ## 사용 예제
 
-### 기본 사용법
+### 기본 사용법 (Context Manager 적용)
 ```python
 from term2ai import PTYWrapper, SessionManager
 
-# PTY 래퍼 생성
-pty = PTYWrapper(shell="/bin/bash")
-pty.spawn()
+# PTY 래퍼 사용 (자동 리소스 관리)
+with PTYWrapper(shell="/bin/bash") as pty:
+    # 명령 실행
+    pty.write("echo 'Hello, World!'\n")
+    output = pty.read()
+    print(output)
+    # pty.terminate()와 리소스 정리가 자동으로 수행됨
 
-# 명령 실행
-pty.write("echo 'Hello, World!'\n")
-output = pty.read()
-print(output)
-
-# 세션 기록
+# 세션 관리 (자동 세션 정리)
 session_manager = SessionManager()
-session = session_manager.create_session(SessionConfig())
-session.start_recording()
+with session_manager.session_context(SessionConfig()) as session:
+    session.start_recording()
+    # 작업 수행
+    # 세션이 자동으로 정리됨
 
-# 정리
-pty.terminate()
+# 임시 설정 사용
+config_manager = ConfigManager()
+with config_manager.temporary_config(debug=True, verbose=True):
+    # 임시 설정으로 작업 수행
+    pass
+    # 원래 설정이 자동으로 복원됨
 ```
 
-### 비동기 사용법
+### 비동기 사용법 (Async Context Manager 적용)
 ```python
 import asyncio
 from term2ai import AsyncIOManager
 
 async def async_terminal():
-    io_manager = AsyncIOManager()
-    
-    # 비동기 I/O 작업
-    data = await io_manager.read_async(fd, 1024)
-    await io_manager.write_async(fd, b"command\n")
+    # 비동기 context manager 사용
+    async with AsyncIOManager() as io_manager:
+        # 비동기 I/O 작업
+        data = await io_manager.read_async(fd, 1024)
+        await io_manager.write_async(fd, b"command\n")
+        # 비동기 리소스가 자동으로 정리됨
 
 asyncio.run(async_terminal())
 ```

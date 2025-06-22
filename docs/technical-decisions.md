@@ -84,7 +84,37 @@ def start(verbose: bool = False):
         console.print("[green]터미널 래퍼 시작[/green]")
 ```
 
-### 5. 설정 관리: TOML vs YAML vs JSON
+### 5. 리소스 관리: 수동 정리 vs Context Manager
+
+#### 결정: Context Manager 패턴 (RAII) 채택
+**근거:**
+- **자동 리소스 정리**: with 문을 사용하면 예외 발생 시에도 리소스가 자동으로 정리됨
+- **Python다운 코드**: Python의 표준 관용구로 코드 가독성 향상
+- **예외 안전성**: try/finally 블록이 자동으로 처리되어 버그 가능성 감소
+- **RAII 패턴**: Resource Acquisition Is Initialization 원칙으로 견고한 설계
+
+**구현 전략:**
+```python
+# 기존 방식 (위험)
+pty = PTYWrapper()
+try:
+    pty.spawn()
+    # 작업 수행
+finally:
+    pty.terminate()  # 실수로 누락될 수 있음
+
+# Context Manager 방식 (안전)
+with PTYWrapper() as pty:
+    # 작업 수행
+    pass  # 자동으로 정리됨
+```
+
+**트레이드오프:**
+- **구현 복잡성**: `__enter__`와 `__exit__` 메서드 구현 필요
+- **성능 향상**: 리소스 누수 방지로 장기적 성능 향상
+- **디버깅 용이성**: 리소스 관련 버그 대폭 감소
+
+### 6. 설정 관리: TOML vs YAML vs JSON
 
 #### 결정: TOML (주) + JSON (보조)
 **근거:**
@@ -115,7 +145,36 @@ def start(verbose: bool = False):
 - **메모리 효율성**: 적응적 버퍼 크기 조정
 - **응답성**: 작은 데이터도 즉시 처리 가능
 
-### 2. 메모리 관리
+### 2. 리소스 수명 관리
+
+#### 결정: Context Manager 기반 자동 관리
+**전략:**
+- **PTY 리소스**: Context manager로 파일 디스크립터 자동 정리
+- **비동기 리소스**: Async context manager로 비동기 리소스 관리
+- **세션 관리**: 세션별 context manager로 생명주기 관리
+- **설정 관리**: 임시 설정을 위한 context manager
+
+**구현:**
+```python
+class PTYWrapper:
+    def __enter__(self) -> 'PTYWrapper':
+        self.spawn()
+        return self
+    
+    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+        self.terminate()
+        self._cleanup_resources()
+
+class AsyncIOManager:
+    async def __aenter__(self) -> 'AsyncIOManager':
+        await self._initialize_async_resources()
+        return self
+    
+    async def __aexit__(self, exc_type, exc_val, exc_tb) -> None:
+        await self._cleanup_async_resources()
+```
+
+### 3. 메모리 관리
 
 #### 결정: 객체 풀링 + 가비지 컬렉션 최적화
 **전략:**

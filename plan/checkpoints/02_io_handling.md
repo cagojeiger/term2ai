@@ -11,14 +11,16 @@
 
 ## 기술 요구사항
 
-### 1. 비동기 I/O 작업
-- **설명**: async/await 지원과 함께 논블로킹 I/O 구현
+### 1. 비동기 I/O 작업 및 리소스 관리
+- **설명**: async/await 지원과 함께 논블로킹 I/O 구현 및 비동기 리소스 자동 관리
 - **승인 기준**:
   - asyncio를 사용한 비동기 읽기/쓰기 작업
   - 반응형 사용자 상호작용을 위한 논블로킹 I/O
   - I/O 멀티플렉싱 적절한 처리 (select/epoll)
   - 동시 입력 및 출력 처리
   - I/O 작업에 대한 타임아웃 지원
+  - Async context manager를 통한 비동기 리소스 자동 관리
+  - 비동기 작업에서도 예외 안전성 보장
 
 ### 2. 스트림 버퍼 관리
 - **설명**: 입출력 스트림을 위한 효율적인 버퍼링 시스템
@@ -81,6 +83,16 @@
 - **테스트 타입**: 단위
 - **예상 동작**: 동시 I/O 작업이 간섭 없이 작동함
 
+#### test_async_context_manager
+- **설명**: 비동기 context manager 테스트
+- **테스트 타입**: 단위
+- **예상 동작**: async with 문으로 비동기 리소스가 자동 관리됨
+
+#### test_async_exception_safety
+- **설명**: 비동기 작업 중 예외 발생 시 리소스 정리 테스트
+- **테스트 타입**: 단위
+- **예상 동작**: 비동기 예외 발생해도 리소스 누수 없음
+
 ### 통합 테스트
 
 #### test_high_throughput_io
@@ -118,11 +130,15 @@
 - **인터페이스**:
   ```python
   class AsyncIOManager:
+      async def __aenter__(self) -> 'AsyncIOManager'
+      async def __aexit__(self, exc_type, exc_val, exc_tb) -> None
       async def read_async(self, fd: int, size: int) -> bytes
       async def write_async(self, fd: int, data: bytes) -> int
       async def read_with_timeout(self, fd: int, timeout: float) -> bytes
       def set_nonblocking(self, fd: int) -> None
       async def wait_for_readable(self, fd: int) -> None
+      async def _initialize_async_resources(self) -> None
+      async def _cleanup_async_resources(self) -> None
   ```
 
 ### 2. 스트림 버퍼 시스템
@@ -130,8 +146,8 @@
 - **설명**: 스트림 데이터를 위한 효율적인 버퍼링
 - **클래스**:
   - `CircularBuffer`: 메모리 효율적인 순환 버퍼
-  - `StreamBuffer`: 고수준 스트림 버퍼링
-  - `BufferManager`: 여러 버퍼 관리
+  - `StreamBuffer`: 고수준 스트림 버퍼링 (context manager 지원)
+  - `BufferManager`: 여러 버퍼 관리 (context manager 지원)
 
 ### 3. 필터 시스템
 - **위치**: src/term2ai/core/filters.py
@@ -180,6 +196,8 @@
 - 비동기 컨텍스트에서 적절한 예외 처리 구현
 - 작업 간 통신에 `asyncio.Queue` 사용
 - 취소 및 정리 적절히 처리
+- Async context manager를 통한 비동기 리소스 자동 관리
+- 비동기 예외 안전성 보장
 
 ### 버퍼 관리
 - 가능한 경우 락프리 순환 버퍼 구현
@@ -228,6 +246,9 @@
 - [ ] 메모리 사용량이 한계 내 유지됨
 - [ ] 모든 테스트가 ≥95% 커버리지로 통과함
 - [ ] 코드가 타입 검사 및 린팅 통과함
+- [ ] Async context manager 구현 및 테스트 완료
+- [ ] 비동기 예외 안전성 테스트 통과
+- [ ] 비동기 리소스 누수 방지 검증
 
 ## 다음 체크포인트
 I/O 처리가 견고하고 효율적이면 [체크포인트 3: 터미널 상태](03_terminal_state.md)로 진행합니다.

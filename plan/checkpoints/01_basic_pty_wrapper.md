@@ -38,14 +38,16 @@
   - 종료 시 리소스 정리
   - 프로세스 재시작 지원
 
-### 4. 오류 처리
-- **설명**: PTY 작업을 위한 견고한 오류 처리
+### 4. 오류 처리 및 리소스 관리
+- **설명**: PTY 작업을 위한 견고한 오류 처리 및 자동 리소스 관리
 - **승인 기준**:
   - PTY 생성 실패 처리
   - I/O 작업 오류 관리
   - 프로세스 생성 실패 우아하게 처리
   - 적절한 예외 타입 및 메시지
   - 디버깅을 위한 로깅
+  - Context manager를 통한 자동 리소스 정리
+  - 예외 발생 시에도 보장되는 리소스 해제
 
 ## 테스트 케이스
 
@@ -93,6 +95,16 @@
 - **테스트 타입**: 통합
 - **예상 동작**: 모든 리소스가 적절히 정리됨
 
+#### test_context_manager_usage
+- **설명**: Context manager를 통한 자동 리소스 관리 테스트
+- **테스트 타입**: 통합
+- **예상 동작**: with 문 종료 시 자동으로 리소스 정리됨
+
+#### test_exception_safety
+- **설명**: 예외 발생 시 리소스 정리 테스트
+- **테스트 타입**: 통합
+- **예상 동작**: 예외 발생해도 리소스가 누수되지 않음
+
 ### 엔드투엔드 테스트
 
 #### test_basic_terminal_session
@@ -109,12 +121,15 @@
   ```python
   class PTYWrapper:
       def __init__(self, shell: str = "/bin/bash")
+      def __enter__(self) -> 'PTYWrapper'
+      def __exit__(self, exc_type, exc_val, exc_tb) -> None
       def spawn(self) -> None
       def write(self, data: str) -> int
       def read(self, size: int = 1024) -> str
       def is_alive(self) -> bool
       def terminate(self) -> None
       def get_exit_code(self) -> Optional[int]
+      def _cleanup_resources(self) -> None
   ```
 
 ### 2. 프로세스 관리 유틸리티
@@ -153,13 +168,17 @@
 1. **블로킹 vs 논블로킹 I/O**: 두 모드 모두 지원
 2. **버퍼 관리**: 구성 가능한 버퍼 크기
 3. **오류 복구**: 오류 시 우아한 성능 저하
-4. **리소스 정리**: 컨텍스트 종료 시 자동 정리
+4. **리소스 정리**: Context manager를 통한 자동 정리
+5. **RAII 패턴**: 리소스 획득과 동시에 해제 보장
+6. **예외 안전성**: 예외 발생 시에도 리소스 누수 방지
 
 ### 테스트 전략
 - 단위 테스트를 위한 PTY 작업 모킹
 - 통합 테스트를 위한 실제 PTY 사용
 - 다양한 셸에 대한 매개변수화된 테스트
 - I/O 작업에 대한 성능 테스트
+- Context manager 동작에 대한 테스트
+- 예외 안전성 및 리소스 정리 테스트
 
 ## 승인 기준
 - [ ] 모든 단위 테스트 통과 (100% 성공률)
@@ -168,6 +187,9 @@
 - [ ] mypy로 타입 검사 통과
 - [ ] ruff로 린팅 통과
 - [ ] 문서 완성 및 정확성
+- [ ] Context manager 구현 및 테스트 완료
+- [ ] 예외 안전성 테스트 통과
+- [ ] 리소스 누수 방지 검증
 
 ## 다음 체크포인트
 기본 PTY 래퍼가 구현되고 테스트되면 [체크포인트 2: I/O 처리](02_io_handling.md)로 진행합니다.
