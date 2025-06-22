@@ -6,6 +6,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Term2AI is a Python-based terminal wrapper providing **complete I/O control**, **global input hijacking**, **AI integration**, and **advanced terminal emulation** capabilities. The project implements a multi-layer hijacking architecture for 100% terminal control and follows a test-driven development (TDD) approach with 8 planned checkpoints for incremental feature development.
 
+**Project Status**: Early development phase (Checkpoint 0 complete). Core functionality is planned but not yet implemented.
+
 ### Core Hijacking Capabilities
 - **Level 1**: PTY-based terminal session control (ptyprocess + blessed)
 - **Level 2**: Global input hijacking (keyboard + pynput) 
@@ -16,7 +18,7 @@ Term2AI is a Python-based terminal wrapper providing **complete I/O control**, *
 
 ### Package Management
 ```bash
-# Install dependencies
+# Install core dependencies only
 uv sync
 
 # Add new dependency
@@ -31,7 +33,7 @@ uv sync --group performance
 # Install complete terminal hijacking features (keyboard, pynput, blessed)
 uv sync --group hijacking
 
-# Install all optional dependencies
+# Install all optional dependencies (recommended for full development)
 uv sync --all-groups
 ```
 
@@ -55,7 +57,7 @@ uv run ruff check src/ tests/ && uv run mypy src/term2ai && uv run black --check
 
 ### Testing
 ```bash
-# Run all tests with coverage
+# Run all tests with coverage (default: html, term, xml reports)
 uv run pytest
 
 # Run specific test file
@@ -69,8 +71,9 @@ uv run pytest -m "e2e"
 # Run tests excluding slow ones
 uv run pytest -m "not slow"
 
-# Generate coverage report
-uv run pytest --cov-report=html
+# View HTML coverage report
+open htmlcov/index.html  # macOS
+xdg-open htmlcov/index.html  # Linux
 ```
 
 ### CLI Application
@@ -143,7 +146,7 @@ uv run term2ai doctor                   # System diagnostics
 - Context manager for temporary config changes that auto-restore
 - Hijacking feature configuration and preferences
 
-**Current Implementation Status**: Only basic module structure exists in `src/term2ai/`. Core classes are not yet implemented.
+**Current Implementation Status**: Only basic module structure exists in `src/term2ai/`. Core classes are not yet implemented. The `hello()` function in `src/term2ai/__init__.py` is the only implemented functionality.
 
 ### Development Workflow
 
@@ -213,6 +216,15 @@ The project maintains comprehensive documentation in `docs/` and `plan/`:
 - Update checkpoint status and acceptance criteria as features are completed
 - Update this CLAUDE.md file's "Current Implementation Status" sections as work progresses
 
+### Key Technical Decisions
+
+From `docs/technical-decisions.md`:
+- **PTY Library**: Using `ptyprocess` instead of `subprocess` for true terminal emulation
+- **Architecture**: Hybrid sync/async approach for progressive complexity
+- **Platform**: Unix-only (Linux/macOS) for optimal performance
+- **Context Managers**: RAII pattern for all resource management
+- **Hijacking Libraries**: `keyboard` + `pynput` + `blessed` for complete terminal control
+
 ### Project Dependencies
 
 **Core Dependencies**:
@@ -240,3 +252,19 @@ The project maintains comprehensive documentation in `docs/` and `plan/`:
 - `pytest-cov>=6.2.1`: Coverage reporting
 
 The project requires Python 3.11+ and is designed exclusively for Unix systems (Linux/macOS). Windows is not supported to ensure optimal performance and simplicity.
+
+### Project Scripts Entry Point
+
+From `pyproject.toml`:
+```toml
+[project.scripts]
+term2ai = "term2ai.cli:app"  # Note: CLI module not yet implemented
+```
+
+### Performance Goals (Unix-only)
+
+From `plan/roadmap.md`:
+- **I/O Latency**: < 3ms (with uvloop + epoll/kqueue optimization)
+- **Throughput**: > 300MB/s (3-5x improvement over basic asyncio)
+- **Memory Usage**: < 60MB (Unix memory management optimization)
+- **CPU Usage**: < 2% (native Unix I/O performance)
