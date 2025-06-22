@@ -18,6 +18,12 @@ uv add <package-name>
 
 # Add development dependency  
 uv add --group dev <package-name>
+
+# Install Unix performance optimizations (uvloop, aiosignal)
+uv sync --group performance
+
+# Install all optional dependencies
+uv sync --all-groups
 ```
 
 ### Code Quality
@@ -60,10 +66,10 @@ uv run pytest --cov-report=html
 
 ### CLI Application
 ```bash
-# Run the main CLI
-uv run term2ai
+# Run the main CLI (currently returns hello message - project in early development)
+uv run python -c "from term2ai import hello; print(hello())"
 
-# Run with specific options
+# Future CLI interface (when implemented)
 uv run term2ai --help
 ```
 
@@ -85,38 +91,43 @@ uv run term2ai --help
    - Plugin System
    - User Interface Layer
 
-### Key Components
+### Key Components (Planned Architecture)
 
-**PTYWrapper Class** (`src/term2ai/core/pty_wrapper.py`):
+**PTYWrapper Class** (planned: `src/term2ai/core/pty_wrapper.py`):
 - Core terminal wrapper with context manager support
 - Must implement `__enter__`/`__exit__` for automatic resource cleanup
 - Handles process lifecycle, basic I/O, and error handling
 
-**AsyncIOManager Class** (`src/term2ai/core/async_io.py`):
+**AsyncIOManager Class** (planned: `src/term2ai/core/async_io.py`):
 - Asynchronous I/O operations with async context manager support  
 - Must implement `__aenter__`/`__aexit__` for async resource management
 - Handles non-blocking I/O, multiplexing, and timeouts
 
-**SessionManager & SessionContext**:
+**SessionManager & SessionContext** (planned):
 - Session lifecycle management through context managers
 - Automatic session cleanup and persistence handling
 
-**ConfigManager & TempConfigContext**:
+**ConfigManager & TempConfigContext** (planned):
 - Configuration management with temporary override support
 - Context manager for temporary config changes that auto-restore
 
+**Current Implementation Status**: Only basic module structure exists in `src/term2ai/`. Core classes are not yet implemented.
+
 ### Development Workflow
 
-The project follows a checkpoint-based development approach with detailed specifications in `plan/checkpoints/`. Current status:
+The project follows a checkpoint-based development approach with detailed specifications in `plan/checkpoints/`. **Current project status: Early development phase with only basic project structure in place.**
 
+**Implementation Status:**
 - **Checkpoint 0**: Project setup (✅ Complete)
-- **Checkpoint 1**: Basic PTY wrapper (🎯 Next)
-- **Checkpoint 2**: I/O handling  
-- **Checkpoint 3**: Terminal state management
-- **Checkpoint 4**: Signal handling
-- **Checkpoint 5**: ANSI parsing
-- **Checkpoint 6**: Session management  
-- **Checkpoint 7**: Advanced features
+- **Checkpoint 1**: Basic PTY wrapper (📋 Pending - Next priority)
+- **Checkpoint 2**: I/O handling (📋 Pending)
+- **Checkpoint 3**: Terminal state management (📋 Pending)
+- **Checkpoint 4**: Signal handling (📋 Pending)
+- **Checkpoint 5**: ANSI parsing (📋 Pending)
+- **Checkpoint 6**: Session management (📋 Pending)
+- **Checkpoint 7**: Advanced features (📋 Pending)
+
+**Important**: Most core functionality described in this document represents planned architecture, not implemented features. Always check the actual source code in `src/term2ai/` before assuming functionality exists.
 
 **Development Philosophy** (from `plan/roadmap.md`):
 - **테스트 주도 개발**: Tests written first, implementation follows
@@ -166,6 +177,7 @@ The project maintains comprehensive documentation in `docs/` and `plan/`:
 - Include context manager interfaces and resource management patterns
 - Maintain Korean language sections for development philosophy
 - Update checkpoint status and acceptance criteria as features are completed
+- Update this CLAUDE.md file's "Current Implementation Status" sections as work progresses
 
 ### Project Dependencies
 
@@ -175,6 +187,11 @@ The project maintains comprehensive documentation in `docs/` and `plan/`:
 - `pydantic>=2.11.7`: Data validation and serialization
 - `rich>=14.0.0`: Terminal output formatting and styling
 - `typer>=0.16.0`: CLI application framework
+- `aiofiles>=23.2.0`: Asynchronous file I/O operations
+
+**Performance Dependencies (Unix-only)**:
+- `uvloop>=0.19.0`: High-performance event loop for asyncio
+- `aiosignal>=1.3.1`: Asynchronous signal handling
 
 **Development Dependencies**:
 - `pytest>=8.4.1` with `pytest-asyncio>=1.0.0`: Testing framework
@@ -183,4 +200,4 @@ The project maintains comprehensive documentation in `docs/` and `plan/`:
 - `black>=25.1.0`: Code formatter
 - `pytest-cov>=6.2.1`: Coverage reporting
 
-The project requires Python 3.11+ and is designed for POSIX systems (Linux/macOS).
+The project requires Python 3.11+ and is designed exclusively for Unix systems (Linux/macOS). Windows is not supported to ensure optimal performance and simplicity.

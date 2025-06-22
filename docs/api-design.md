@@ -543,7 +543,13 @@ with config_manager.temporary_config(debug=True, verbose=True):
 ### 비동기 사용법 (Async Context Manager 적용)
 ```python
 import asyncio
+import uvloop
 from term2ai import AsyncIOManager
+import aiofiles
+
+# Unix 전용 성능 최적화
+asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
+print("uvloop 성능 최적화 활성화")
 
 async def async_terminal():
     # 비동기 context manager 사용
@@ -551,9 +557,48 @@ async def async_terminal():
         # 비동기 I/O 작업
         data = await io_manager.read_async(fd, 1024)
         await io_manager.write_async(fd, b"command\n")
+        
+        # aiofiles를 통한 세션 로깅
+        async with aiofiles.open('session.log', 'a') as log_file:
+            await log_file.write(f"Command executed: {data.decode()}\n")
+        
         # 비동기 리소스가 자동으로 정리됨
 
+# Unix 최적화된 고성능으로 실행
 asyncio.run(async_terminal())
+```
+
+### 성능 최적화 사용법
+```python
+import uvloop
+from term2ai import AsyncIOManager, PTYWrapper
+
+# Unix 전용 고성능 비동기 터미널 래퍼
+class HighPerformancePTY:
+    def __init__(self):
+        self.setup_unix_optimization()
+    
+    def setup_unix_optimization(self):
+        """Unix 전용 최적화 설정"""
+        asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
+        self.performance_mode = "uvloop_epoll"
+    
+    async def process_high_throughput(self, data_stream):
+        """고처리량 데이터 처리 (목표: >300MB/s Unix)"""
+        async with AsyncIOManager() as io_manager:
+            async for chunk in data_stream:
+                processed = await io_manager.process_chunk(chunk)
+                yield processed
+
+# 사용 예시
+async def benchmark_performance():
+    pty = HighPerformancePTY()
+    print(f"성능 모드: {pty.performance_mode}")
+    
+    # 대용량 데이터 처리
+    async for result in pty.process_high_throughput(data_generator()):
+        # 결과 처리
+        pass
 ```
 
 ### 플러그인 개발

@@ -112,10 +112,13 @@ ANSI 처리 → 터미널 상태 → PTY 코어 → 셸 프로세스
 - Context manager를 통한 자동 리소스 정리
 
 ### I/O 관리자
-- 비동기 I/O 작업 구현
-- 입력/출력 버퍼 관리
-- 동시 작업 조정
-- Async context manager를 통한 비동기 리소스 관리
+- **aiofiles 기반 비동기 파일 I/O**: 세션 로깅, 설정 파일 처리
+- **uvloop 성능 최적화**: Unix 계열에서 2-4배 성능 향상 (조건부 활성화)
+- **입출력 버퍼 관리**: 8KB 기본 버퍼, 적응적 크기 조정
+- **I/O 멀티플렉싱**: select/epoll을 통한 동시 스트림 처리
+- **aiosignal 통합**: 비동기 시그널 처리와 I/O 작업 조정
+- **Async context manager**: 비동기 리소스 자동 관리 (__aenter__/__aexit__)
+- **Unix 전용 최적화**: epoll/kqueue 기반 최적 I/O 성능
 
 ### 터미널 상태 관리자
 - 터미널 모드 및 기능 추적
@@ -194,18 +197,29 @@ ANSI 처리 → 터미널 상태 → PTY 코어 → 셸 프로세스
 ## 성능 특성
 
 ### 예상 성능
-- **I/O 지연시간**: 일반적인 작업에서 < 10ms
-- **처리량**: 데이터 처리에서 > 100MB/s
-- **메모리 사용량**: 일반 작업에서 < 100MB
-- **CPU 사용량**: 유휴 상태에서 < 5%
+
+#### 성능 목표 (Unix 전용)
+- **I/O 지연시간**: < 3ms (uvloop + epoll/kqueue 최적화)
+- **처리량**: > 300MB/s (기본 asyncio 대비 3-5배 향상)
+- **메모리 사용량**: < 60MB (Unix 메모리 관리 최적화)
+- **CPU 사용량**: < 2% (네이티브 Unix I/O 성능)
 
 ### 최적화 전략
-- **비동기 작업**: 반응성을 위한 논블로킹 I/O
-- **메모리 풀**: 효율적인 메모리 할당
-- **캐싱**: 자주 접근하는 데이터의 지능형 캐싱
-- **일괄 처리**: 효율성을 위한 일괄 처리
-- **자동 리소스 관리**: Context manager를 통한 오버헤드 최소화
-- **예외 안전 최적화**: 리소스 정리 비용을 최소화하는 RAII 패턴
+
+#### 비동기 I/O 최적화
+- **uvloop 활용**: libuv 기반 고성능 이벤트 루프
+- **aiofiles 통합**: 비동기 파일 I/O로 블로킹 방지
+- **최적화 라이브러리**: Unix 전용 고성능 라이브러리 활용
+
+#### 메모리 및 버퍼 최적화
+- **계층적 버퍼링**: 커널 → 애플리케이션 → 사용자 버퍼
+- **객체 풀링**: 자주 사용되는 버퍼 객체 재사용
+- **적응적 크기**: 워크로드에 따른 동적 버퍼 크기 조정
+
+#### 시그널 및 동시성 최적화
+- **aiosignal 통합**: 비동기 시그널 처리로 I/O 블로킹 방지
+- **epoll 활용**: Linux/Unix 최적화된 다중 스트림 처리
+- **Context manager 최적화**: RAII 패턴으로 리소스 관리 오버헤드 최소화
 
 ## 테스트 전략
 
@@ -222,4 +236,67 @@ ANSI 처리 → 터미널 상태 → PTY 코어 → 셸 프로세스
 - 성능 벤치마킹 및 회귀 감지
 - 플랫폼 간 호환성 테스트
 
-이 아키텍처는 높은 성능 및 호환성 표준을 유지하면서 견고하고 확장 가능한 터미널 래퍼를 구축하기 위한 견고한 기반을 제공합니다.
+## 지원 플랫폼
+
+### Unix 계열 전용 지원
+
+| 플랫폼 | aiofiles | uvloop | aiosignal | 예상 성능 | 권장 설치 |
+|--------|----------|---------|-----------|-----------|-----------|
+| **Linux** | ✅ | ✅ | ✅ | 최고 (< 3ms, > 300MB/s) | `uv sync --group performance` |
+| **macOS** | ✅ | ✅ | ✅ | 최고 (< 3ms, > 300MB/s) | `uv sync --group performance` |
+
+### Unix 계열 설치 가이드
+
+#### Linux/macOS 전용 설치
+```bash
+# 전체 성능 최적화 설치
+uv sync --group performance
+
+# 환경 확인
+python -c "
+import sys, uvloop, aiosignal
+print(f'플랫폼: {sys.platform}')
+print(f'uvloop: {uvloop.__version__}')
+print(f'aiosignal: {aiosignal.__version__}')
+print('✅ Unix 최적 성능 구성 완료')
+"
+```
+
+### Unix 전용 최적화 설정
+
+```python
+import asyncio
+import uvloop
+
+# Unix 전용 최적화 설정
+def setup_unix_optimization():
+    """비동기 이벤트 루프 최적화 설정"""
+    asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
+    
+def get_expected_performance() -> dict:
+    """고성능 Unix 예상 성능 지표"""
+    return {
+        'latency': '<3ms', 
+        'throughput': '>300MB/s',
+        'memory': '<60MB',
+        'cpu': '<2%'
+    }
+
+# 사용 예시
+setup_unix_optimization()
+print(f"예상 성능: {get_expected_performance()}")
+```
+
+### 개발 환경 권장사항
+
+#### CI/CD 환경
+- **GitHub Actions**: Linux runner에서 `uv sync --group performance`
+- **GitLab CI**: Docker 이미지에 uvloop 사전 설치
+- **Travis CI**: Linux/macOS 환경에서 테스트
+
+#### 개발자 환경
+- **Linux 개발자**: 성능 그룹 필수 설치
+- **macOS 개발자**: 성능 그룹 필수 설치
+- **Unix 전용 테스트**: 의존성 그룹별 테스트 자동화
+
+이 아키텍처는 Unix 계열 전용 최적화를 통해 최대 성능을 달성하며 견고하고 확장 가능한 터미널 래퍼를 구축하기 위한 견고한 기반을 제공합니다.

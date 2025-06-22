@@ -160,9 +160,9 @@
 ## 구현 참고사항
 
 ### 핵심 의존성
-- **ptyprocess**: 주요 PTY 처리 라이브러리
-- **pexpect**: 고급 PTY 작업을 위한 대체
-- **typing**: 더 나은 코드 품질을 위한 타입 힌트
+- **ptyprocess**: Unix/Linux 전용 PTY 처리 라이브러리
+- **pexpect**: Unix 계열 고급 PTY 작업 최적화
+- **typing**: Unix 네이티브 성능을 위한 타입 힌트
 
 ### 주요 설계 결정
 1. **블로킹 vs 논블로킹 I/O**: 두 모드 모두 지원

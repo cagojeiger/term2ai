@@ -115,7 +115,7 @@
 #### test_io_latency
 - **설명**: I/O 작업 지연시간 측정
 - **테스트 타입**: 성능
-- **예상 동작**: 지연시간이 허용 한계 내 (< 10ms)
+- **예상 동작**: 지연시간이 Unix 최적화 목표 내 (< 3ms)
 
 #### test_throughput_limits
 - **설명**: 최대 처리량 능력 테스트
@@ -192,12 +192,30 @@
 ## 구현 참고사항
 
 ### 비동기 프로그래밍
-- 비동기 작업에 `asyncio` 사용
-- 비동기 컨텍스트에서 적절한 예외 처리 구현
+- **aiofiles**: 비동기 파일 I/O (세션 로깅, 설정 파일 처리)
+- **uvloop**: libuv 기반 고성능 이벤트 루프 (2-4배 성능 향상)
+- **aiosignal**: Unix 시그널 처리와 I/O 먀티플렉싱 통합
+- **Unix 전용 최적화**: epoll/kqueue 기반 최대 성능 달성
 - 작업 간 통신에 `asyncio.Queue` 사용
 - 취소 및 정리 적절히 처리
 - Async context manager를 통한 비동기 리소스 자동 관리
 - 비동기 예외 안전성 보장
+
+**구현 예시:**
+```python
+# Unix 전용 최적화 설정
+import uvloop
+import aiosignal
+
+# 고성능 이벤트 루프 설정
+asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
+
+# aiofiles를 통한 비동기 파일 I/O
+import aiofiles
+async def async_log_session(data):
+    async with aiofiles.open('session.log', 'a') as f:
+        await f.write(data)
+```
 
 ### 버퍼 관리
 - 가능한 경우 락프리 순환 버퍼 구현
@@ -212,10 +230,19 @@
 - 필터 매개변수를 위한 구성 인터페이스 제공
 
 ### 성능 고려사항
+- **uvloop 활용**: Unix 전용 최대 성능 달성 (< 5ms 지연시간, > 200MB/s)
+- **epoll/kqueue 최적화**: Unix 전용 I/O 먀티플렉싱 최적화
+- **aiofiles 통합**: 비동기 파일 I/O로 블로킹 방지
 - 핫 패스에서 메모리 할당 최소화
 - 효율적인 데이터 구조 사용 (deque, bytes)
 - I/O 작업에 적절한 일괄 처리 구현
 - 중요 섹션 프로파일링 및 최적화
+
+**성능 목표 (Unix 전용):**
+- 지연시간: < 3ms
+- 처리량: > 300MB/s
+- 메모리 사용량: < 60MB
+- CPU 사용량: < 2%
 
 ## 테스트 전략
 
@@ -242,7 +269,7 @@
 - [ ] 버퍼 관리가 엣지 케이스를 적절히 처리함
 - [ ] 필터 시스템이 확장 가능하고 성능이 우수함
 - [ ] 스트림 멀티플렉싱이 여러 세션과 작동함
-- [ ] 성능 요구사항 충족 (지연시간 < 10ms)
+- [ ] Unix 성능 요구사항 충족 (지연시간 < 3ms)
 - [ ] 메모리 사용량이 한계 내 유지됨
 - [ ] 모든 테스트가 ≥95% 커버리지로 통과함
 - [ ] 코드가 타입 검사 및 린팅 통과함
