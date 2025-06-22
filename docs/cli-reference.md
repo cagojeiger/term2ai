@@ -1,7 +1,7 @@
 # Term2AI CLI 레퍼런스
 
 ## 개요
-Term2AI는 함수형 프로그래밍 패러다임을 기반으로 설계된 터미널 래퍼로, 모든 CLI 명령어가 순수 함수와 Effect 시스템을 통해 구현됩니다. 이 문서는 모든 CLI 명령어의 상세한 사용법을 설명합니다.
+Term2AI는 실용적이고 사용하기 쉬운 터미널 래퍼입니다. 이 문서는 계획된 CLI 명령어의 사용법을 설명합니다. (주의: CLI는 아직 구현되지 않았으며, 이는 향후 구현될 인터페이스입니다)
 
 ## 기본 사용법
 ```bash
@@ -21,13 +21,7 @@ uv run term2ai start [OPTIONS]
 - `--shell PATH`: 사용할 셸 경로 (기본값: `/bin/bash`)
 - `--config PATH`: 설정 파일 경로
 - `--verbose`: 상세 출력 모드
-- `--hijack-level LEVEL`: 하이재킹 레벨 설정
-  - `minimal`: PTY만 사용 (기본값)
-  - `standard`: PTY + 키보드 캡처
-  - `complete`: PTY + 키보드 + 마우스 + blessed
-- `--enable-keyboard`: 키보드 캡처 활성화
-- `--enable-mouse`: 마우스 캡처 활성화
-- `--disable-blessed`: blessed 터미널 제어 비활성화
+- `--log-file PATH`: 세션 로그 파일 경로
 
 **실시간 필터링 옵션:**
 - `--filter-passwords`: 비밀번호 자동 마스킹
@@ -46,14 +40,14 @@ uv run term2ai start
 # zsh 셸로 시작
 uv run term2ai start --shell /bin/zsh
 
-# 완전 하이재킹 모드
-uv run term2ai start --hijack-level complete
+# 상세 모드로 시작
+uv run term2ai start --verbose
 
-# 비밀번호 필터링과 함께 시작
-uv run term2ai start --filter-passwords --verbose
+# 세션 로깅과 함께 시작
+uv run term2ai start --log-file session.log
 
 # 커스텀 설정 파일 사용
-uv run term2ai start --config ~/.term2ai/production.toml
+uv run term2ai start --config ~/.term2ai/config.toml
 ```
 
 ### `stats` - 세션 통계 확인
@@ -564,15 +558,15 @@ audit = false
 sandbox = false
 ```
 
-## 함수형 프로그래밍 특징
+## 설계 원칙
 
-모든 CLI 명령어는 함수형 프로그래밍 원칙을 따릅니다:
+Term2AI CLI는 다음 원칙을 따릅니다:
 
-1. **순수 함수**: 모든 명령어 파싱과 검증은 순수 함수로 구현
-2. **Effect 시스템**: 모든 I/O 작업은 IOEffect로 캡슐화
-3. **Result 모나드**: 모든 에러는 타입 안전하게 처리
-4. **불변성**: 모든 설정과 상태는 불변 객체
-5. **스트림 처리**: 대화형 모드는 함수형 스트림으로 구현
+1. **직관적 인터페이스**: 복잡한 옵션보다 간단한 명령어
+2. **명확한 에러 메시지**: 사용자가 이해할 수 있는 메시지
+3. **점진적 기능 추가**: 기본 기능부터 시작
+4. **표준 관례 준수**: Unix CLI 관례 따르기
+5. **실용적 접근**: 필요한 기능만 구현
 
 ## 성능 목표
 
@@ -592,3 +586,23 @@ Unix 시스템에서 최적화된 성능:
 4. **하이재킹 실패**: 하이재킹 레벨 조정
 
 자세한 문제 해결은 사용자 가이드를 참조하세요.
+
+## 구현 상태 (2025-06-22)
+
+**⚠️ 주의**: 이 CLI 레퍼런스는 계획된 인터페이스를 설명합니다. 실제 CLI는 아직 구현되지 않았습니다.
+
+### 현재 구현된 기능
+- ✅ 기본 PTY 래퍼 (`src/term2ai/pty_wrapper.py`)
+- ✅ Python API로 PTY 제어 가능
+
+### 계획된 기능 (미구현)
+- ❌ CLI 인터페이스 (`term2ai` 명령어)
+- ❌ 세션 관리 및 통계
+- ❌ 설정 파일 시스템
+- ❌ 플러그인 시스템
+- ❌ 고급 필터링 및 변환
+
+### 다음 단계
+1. 기본 CLI 구현 (Checkpoint 3)
+2. 간단한 `start` 명령어부터 시작
+3. 실제 사용 피드백 기반 기능 추가

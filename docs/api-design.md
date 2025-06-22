@@ -1,182 +1,169 @@
-# 함수형 API 설계 문서
+# 실용적 API 설계 문서
 
 ## 개요
-term2ai의 API는 **함수형 프로그래밍 패러다임**을 기반으로 설계되어 순수 함수, 모나드, Effect 시스템을 통한 명확하고 합성 가능한 인터페이스를 제공합니다. 이 문서는 함수형 API 설계 원칙과 구체적인 함수 시그니처를 설명합니다.
+term2ai의 API는 **실용적이고 직관적인 인터페이스**를 제공합니다. 필요한 부분에만 함수형 개념을 적용하고, Python의 관용적 패턴을 존중하면서 안정적이고 사용하기 쉬운 API를 제공합니다.
 
-## 함수형 API 설계 원칙
+## 실용적 API 설계 원칙
 
-### 1. 순수성 (Purity)
-- 모든 비즈니스 로직은 순수 함수로 구현
-- 동일한 입력에 대해 항상 동일한 출력 보장
-- 부작용은 Effect 시스템을 통해 명시적으로 분리
+### 1. 직관성 우선 (Intuitive First)
+- Python 개발자에게 친숙한 API 설계
+- 명확한 함수/메서드 이름
+- 최소한의 학습 곡선
+- 표준 라이브러리 패턴 활용
 
-### 2. 타입 안전성 및 모나드 활용
-- Result 모나드로 에러 처리
-- Maybe 모나드로 null 안전성
-- IOEffect 모나드로 부작용 관리
-- 컴파일 타임 에러 감지
+### 2. 점진적 복잡도 (Progressive Complexity)
+- 기본 사용은 단순하게
+- 고급 기능은 선택적으로
+- 필요한 만큼만 추상화
+- 디버깅 가능한 구조
 
-### 3. 합성성 (Composability)
-- 작은 함수들의 합성으로 복잡한 기능 구현
-- 파이프라인과 체이닝을 통한 데이터 변환
-- 모나드 법칙을 통한 안전한 합성
+### 3. 실용적 에러 처리
+- 기본 Exception 활용
+- 명확한 에러 메시지
+- 복구 가능한 에러는 로깅
+- 필요시만 Result 타입 사용
 
-### 4. 불변성 (Immutability)
-- 모든 데이터 구조는 불변
-- 상태 변경은 새로운 인스턴스 생성
-- 동시성 안전성 자동 보장
+### 4. 타입 힌트 활용
+- 기본 Python 타입 힌트
+- Pydantic 모델로 검증
+- 과도한 제네릭 피하기
+- IDE 자동완성 지원
 
-### 5. 명시적 부작용 관리
-- I/O 작업을 IOEffect로 캡슐화
-- 순수 함수와 부작용 명확히 분리
-- Effect 합성을 통한 복잡한 I/O 작업
+### 5. 백워드 호환성
+- 기존 API 유지
+- 점진적 개선
+- 명확한 마이그레이션 경로
+- 사용자 영향 최소화
 
-## 함수형 API 모듈
+## 실용적 API 모듈
 
-### 1. PTY 처리 순수 함수 API
+### 1. 기본 PTY 처리 API (현재 구현)
 
-#### PTY 설정 및 생성 함수
+#### PTY 래퍼 클래스
 ```python
-# 순수 함수: PTY 설정 생성
-def create_pty_config(
-    shell: str = "/bin/bash",
-    env: dict[str, str] | None = None,
-    working_dir: str | None = None
-) -> PTYConfig:
+class PTYWrapper:
+    """기본 PTY 기능을 제공하는 실용적 래퍼"""
+
+    def __init__(
+        self,
+        shell: str = "/bin/bash",
+        env: dict[str, str] | None = None,
+        working_dir: str | None = None
+    ):
+        """
+        PTY 래퍼 초기화
+
+        Args:
+            shell: 실행할 쉘 경로
+            env: 환경 변수 딕셔너리
+            working_dir: 작업 디렉토리
+        """
+
+    def spawn(self) -> None:
+        """PTY 프로세스 시작"""
+
+    def read(self, size: int = 1024, timeout: float | None = None) -> str:
+        """
+        PTY에서 데이터 읽기
+
+        Args:
+            size: 읽을 최대 바이트 수
+            timeout: 타임아웃 (초)
+
+        Returns:
+            읽은 데이터 문자열
+
+        Raises:
+            TimeoutError: 타임아웃 발생시
+            IOError: 읽기 실패시
+        """
+
+    def write(self, data: str) -> int:
+        """
+        PTY에 데이터 쓰기
+
+        Args:
+            data: 쓸 데이터
+
+        Returns:
+            쓴 바이트 수
+
+        Raises:
+            IOError: 쓰기 실패시
+        """
+
+    def close(self) -> None:
+        """PTY 프로세스 종료 및 리소스 정리"""
+```
+
+### 2. 계획된 순수 함수 유틸리티 (Phase 2)
+
+#### 데이터 변환 함수
+```python
+def parse_ansi_sequence(text: str) -> list[ANSISequence]:
     """
-    PTY 설정을 생성하는 순수 함수
+    ANSI 이스케이프 시퀀스 파싱
 
     Args:
-        shell: 실행할 쉘 경로
-        env: 환경 변수 딕셔너리
-        working_dir: 작업 디렉토리
+        text: ANSI 코드가 포함된 텍스트
 
     Returns:
-        불변 PTY 설정 객체
+        파싱된 ANSI 시퀀스 리스트
     """
 
-# Effect: PTY 프로세스 생성
-def spawn_pty_effect(config: PTYConfig) -> IOEffect[Result[PTYHandle, PTYError]]:
+def validate_shell_command(command: str) -> bool:
     """
-    PTY 프로세스를 생성하는 Effect
+    셸 명령어 유효성 검증
 
     Args:
-        config: PTY 설정
+        command: 검증할 명령어
 
     Returns:
-        PTY 핸들을 반환하는 Effect (성공/실패 포함)
+        유효 여부
     """
 
-# 순수 함수: PTY 상태 검증
-def validate_pty_handle(handle: PTYHandle) -> Result[PTYHandle, ValidationError]:
+def encode_for_pty(text: str) -> bytes:
     """
-    PTY 핸들의 유효성을 검증하는 순수 함수
+    PTY 전송을 위한 텍스트 인코딩
 
     Args:
-        handle: 검증할 PTY 핸들
+        text: 인코딩할 텍스트
 
     Returns:
-        검증된 핸들 또는 에러
+        인코딩된 바이트
+
+    Raises:
+        UnicodeEncodeError: 인코딩 실패시
     """
 ```
 
-#### PTY I/O 함수형 API
+### 3. 비동기 I/O API (계획)
+
+#### 비동기 PTY 래퍼
 ```python
-# Effect: PTY 읽기
-def read_pty_effect(handle: PTYHandle, size: int = 1024) -> IOEffect[Result[bytes, IOError]]:
-    """
-    PTY에서 데이터를 읽는 Effect
+class AsyncPTYWrapper:
+    """비동기 PTY 기능을 제공하는 래퍼 (향후 구현)"""
 
-    Args:
-        handle: PTY 핸들
-        size: 읽을 바이트 수
+    async def read(self, size: int = 1024) -> str:
+        """비동기 PTY 읽기"""
 
-    Returns:
-        읽은 데이터 또는 에러를 포함하는 Effect
-    """
+    async def write(self, data: str) -> int:
+        """비동기 PTY 쓰기"""
 
-# Effect: PTY 쓰기
-def write_pty_effect(handle: PTYHandle, data: str) -> IOEffect[Result[int, IOError]]:
-    """
-    PTY에 데이터를 쓰는 Effect
+    async def read_until(self, pattern: str, timeout: float = 30.0) -> str:
+        """
+        특정 패턴까지 비동기 읽기
 
-    Args:
-        handle: PTY 핸들
-        data: 쓸 데이터
+        Args:
+            pattern: 찾을 패턴
+            timeout: 타임아웃 (초)
 
-    Returns:
-        쓰여진 바이트 수 또는 에러를 포함하는 Effect
-    """
+        Returns:
+            패턴까지의 데이터
 
-# 순수 함수: 데이터 변환
-def decode_pty_data(data: bytes) -> Result[str, DecodeError]:
-    """
-    PTY 바이트 데이터를 문자열로 디코딩하는 순수 함수
-
-    Args:
-        data: 디코딩할 바이트 데이터
-
-    Returns:
-        디코딩된 문자열 또는 에러
-    """
-
-# Effect 합성을 통한 고수준 API
-def read_and_decode_pty(handle: PTYHandle, size: int = 1024) -> IOEffect[Result[str, PTYError]]:
-    """
-    PTY 읽기와 디코딩을 합성한 Effect
-
-    Returns:
-        디코딩된 문자열 또는 에러
-    """
-    return (read_pty_effect(handle, size)
-            .bind(lambda result:
-                  result.bind(decode_pty_data)
-                  .map_err(PTYError.from_decode_error)))
-```
-
-### 2. 이벤트 스트림 API
-
-#### 비동기 스트림 생성 함수
-```python
-# 순수 함수: 스트림 설정 생성
-def create_stream_config(
-    buffer_size: int = 1024,
-    timeout: float | None = None,
-    backpressure_limit: int = 1000
-) -> StreamConfig:
-    """
-    스트림 설정을 생성하는 순수 함수
-
-    Args:
-        buffer_size: 버퍼 크기
-        timeout: 타임아웃 (초)
-        backpressure_limit: 백프레셔 한계
-
-    Returns:
-        불변 스트림 설정 객체
-    """
-
-# Effect: 키보드 이벤트 스트림 생성
-def create_keyboard_stream_effect() -> IOEffect[AsyncStream[KeyboardEvent]]:
-    """
-    키보드 이벤트 스트림을 생성하는 Effect
-
-    Returns:
-        키보드 이벤트 스트림을 반환하는 Effect
-    """
-
-# Effect: PTY 출력 스트림 생성
-def create_pty_stream_effect(handle: PTYHandle, config: StreamConfig) -> IOEffect[AsyncStream[PTYEvent]]:
-    """
-    PTY 출력 스트림을 생성하는 Effect
-
-    Args:
-        handle: PTY 핸들
-        config: 스트림 설정
-
-    Returns:
-        PTY 이벤트 스트림을 반환하는 Effect
-    """
+        Raises:
+            TimeoutError: 타임아웃 발생시
+        """
 ```
 
 #### 스트림 변환 순수 함수
@@ -1240,3 +1227,37 @@ class MyPlugin(PluginBase):
 ```
 
 이 API 설계는 모듈화, 확장성, 사용 편의성을 고려하여 설계되었으며, 터미널 래퍼의 모든 기능에 대한 명확하고 일관된 인터페이스를 제공합니다.
+
+## 실용적 API 개선 방향 (2025-06-22 업데이트)
+
+### 현재 구현 상태
+- **Phase 1**: 기본 PTYWrapper 클래스 구현 완료
+- **Phase 2**: 순수 함수 유틸리티 계획 중 (필요시만 구현)
+- **Phase 3**: 고급 기능은 실제 요구사항 발생시 추가
+
+### API 설계 원칙
+1. **단순함 우선**: 복잡한 모나드 체인보다 간단한 함수 호출
+2. **표준 패턴 활용**: Python의 관용적 패턴 존중
+3. **점진적 도입**: 기본 기능부터 시작, 필요시 고급 기능 추가
+4. **명확한 에러**: 사용자가 이해할 수 있는 에러 메시지
+
+### 권장 사용 패턴
+```python
+# 간단하고 명확한 사용법
+with PTYWrapper() as pty:
+    pty.write("ls -la\n")
+    output = pty.read()
+    print(output)
+
+# 필요시만 고급 기능 사용
+async def advanced_usage():
+    async with AsyncPTYWrapper() as pty:
+        result = await pty.read_until("$ ")
+        # ...
+```
+
+### 피해야 할 패턴
+- 모든 것을 Effect로 래핑
+- 과도한 타입 추상화
+- 불필요한 함수형 라이브러리 도입
+- 단순한 작업의 과도한 추상화

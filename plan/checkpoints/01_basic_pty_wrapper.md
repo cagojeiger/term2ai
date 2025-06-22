@@ -146,22 +146,29 @@
 - **테스트 타입**: 이벤트 소싱 E2E
 - **예상 동작**: 기록된 이벤트로 정확한 세션 상태 재현
 
-## 함수형 결과물
+## 결과물
 
-### 1. 순수 함수 PTY 모듈
-- **위치**: src/term2ai/pure/pty_functions.py
-- **설명**: PTY 작업을 위한 순수 함수 컬렉션
-- **함수들**:
+### Phase 1 결과물 (✅ 완료)
+
+#### 1. OOP 기반 PTY 래퍼
+- **위치**: src/term2ai/pty_wrapper.py
+- **설명**: 기본 PTY 기능을 제공하는 클래스
+- **구현 상태**: ✅ 완료
+
+### Phase 2 결과물 (🎯 현재 작업 중)
+
+#### 2. 순수 함수 모듈
+- **위치**: src/term2ai/pure_functions.py (계획)
+- **설명**: 핵심 로직을 추출한 순수 함수들
+- **계획 함수**:
   ```python
-  # 순수 함수들
-  def create_pty_config(shell: str, env: dict, cwd: str) -> PTYConfig
-  def validate_pty_config(config: PTYConfig) -> Result[PTYConfig, ValidationError]
-  def decode_pty_data(data: bytes) -> Result[str, DecodeError]
-  def encode_pty_data(text: str) -> Result[bytes, EncodeError]
-  def update_process_state(state: ProcessState, event: ProcessEvent) -> ProcessState
-  def analyze_terminal_capabilities(terminal_info: dict) -> TerminalCapabilities
-  def generate_ansi_sequence(command: TerminalCommand) -> str
-  def validate_process_state(state: ProcessState) -> Result[ProcessState, ValidationError]
+  # 설정 생성 및 검증
+  def create_pty_config(shell: str, env: dict) -> dict
+  def validate_input(data: str) -> Result[str, str]
+
+  # 데이터 변환
+  def transform_data(input: str) -> str
+  def parse_command(cmd: str) -> dict
   ```
 
 ### 2. IOEffect 시스템

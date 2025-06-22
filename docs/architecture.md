@@ -1,8 +1,8 @@
-# 함수형 아키텍처 개요
+# 실용적 아키텍처 개요
 
 ## 시스템 아키텍처
 
-term2ai 터미널 래퍼는 **함수형 프로그래밍 패러다임**을 기반으로 설계된 순수하고 합성 가능한 시스템입니다. 모든 비즈니스 로직은 순수 함수로 구현되며, 부작용은 Effect 시스템을 통해 명시적으로 관리됩니다. 기존 터미널 애플리케이션과의 호환성을 유지하면서도 예측 가능하고 테스트하기 쉬운 코드베이스를 제공합니다.
+term2ai 터미널 래퍼는 **실용적 함수형 프로그래밍 접근법**을 기반으로 설계된 터미널 제어 시스템입니다. 핵심 비즈니스 로직은 순수 함수로 구현하되, 과도한 추상화를 피하고 실제 필요한 기능에 집중합니다. 기존 터미널 애플리케이션과의 호환성을 유지하면서 점진적으로 개선 가능한 구조를 제공합니다.
 
 ### 함수형 아키텍처 레이어
 
@@ -31,34 +31,36 @@ term2ai 터미널 래퍼는 **함수형 프로그래밍 패러다임**을 기반
 └─────────────────────────────────────────────────────────────┘
 ```
 
-### 함수형 스트림 기반 하이재킹
+### 실용적 터미널 제어 접근법
 
-term2ai는 **함수형 스트림 처리**를 통해 터미널 I/O의 완전한 제어를 달성합니다:
+term2ai는 **단계적이고 실용적인 접근**을 통해 터미널 I/O 제어를 구현합니다:
 
 ```
-Event Streams (비동기 스트림):
+Phase 1: 기본 PTY 제어 (현재 구현)
 ┌─────────────────────────────────────────────────────┐
-│ KeyboardStream    MouseStream    PTYStream          │
-│ (keyboard lib) →  (pynput) →     (ptyprocess) →     │
-└─────────────────┬───────────────────────────────────┘
-                  ↓
-Event Transformation Pipeline (순수 함수 체인):
+│ PTY Process     →    Basic I/O    →    Terminal    │
+│ (ptyprocess)         (read/write)      (stdout)     │
+└─────────────────────────────────────────────────────┘
+
+Phase 2: 핵심 로직 함수형 전환 (계획)
 ┌─────────────────────────────────────────────────────┐
-│ filter_events → parse_data → validate_input →       │
-│ transform_sequences → analyze_patterns              │
-└─────────────────┬───────────────────────────────────┘
-                  ↓
-Effect Composition (모나드 체인):
+│ PTY Wrapper  →  Pure Functions  →  Simple Effects  │
+│ (OOP 기반)      (데이터 변환)        (I/O 래핑)       │
+└─────────────────────────────────────────────────────┘
+
+Phase 3: 고급 기능 선택적 추가 (선택사항)
 ┌─────────────────────────────────────────────────────┐
-│ IOEffect[Event] → Result[ProcessedEvent, Error] →  │
-│ Maybe[Action] → State[TerminalState, Action]       │
-└─────────────────┬───────────────────────────────────┘
-                  ↓
-Event Sourcing (불변 이벤트 저장):
-┌─────────────────────────────────────────────────────┐
-│ append_event → fold_to_state → emit_side_effects    │
+│ • blessed (필요시)                                   │
+│ • keyboard hooks (특정 기능 요구시)                   │
+│ • Event sourcing (감사 추적 필요시)                   │
 └─────────────────────────────────────────────────────┘
 ```
+
+**실용적 설계 원칙:**
+- 필요한 기능만 구현 (YAGNI 원칙)
+- 검증된 라이브러리 활용
+- 점진적 복잡도 증가
+- 실제 사용 사례 기반 설계
 
 ### 함수형 레이어 설명
 
@@ -150,43 +152,43 @@ update_terminal_state: ANSISequence[] -> State[TerminalState, Unit]
 emit_ui_update: TerminalState -> IOEffect[Unit]
 ```
 
-## 함수형 설계 원칙
+## 실용적 함수형 설계 원칙
 
-### 1. 순수성 (Purity)
-- 모든 비즈니스 로직은 순수 함수로 구현
-- 동일한 입력에 대해 항상 동일한 출력 보장
-- 부작용 없이 참조 투명성 유지
-- 테스트와 추론이 쉬운 코드
+### 1. 선택적 순수성 (Selective Purity)
+- **핵심 비즈니스 로직**만 순수 함수로 구현
+- 데이터 변환, 파싱, 검증 등에 집중
+- I/O는 기존 방식 유지, 필요시 래핑
+- 80/20 원칙: 20%의 순수 함수로 80%의 이익
 
-### 2. 불변성 (Immutability)
-- 모든 데이터 구조는 불변으로 설계
-- 상태 변경은 새로운 인스턴스 생성으로 처리
-- 동시성 안전성 자동 보장
-- 시간 여행 디버깅 가능
+### 2. 실용적 불변성 (Pragmatic Immutability)
+- Pydantic 모델로 타입 안전성 확보
+- 성능이 중요한 부분은 가변 허용
+- 불변성은 도구이지 목적이 아님
+- 필요한 곳에만 선택적 적용
 
-### 3. 합성성 (Composability)
-- 작은 함수들의 합성으로 복잡한 기능 구현
-- 파이프라인과 체이닝을 통한 데이터 변환
-- 모나드를 통한 안전한 연산 합성
-- 재사용 가능한 함수 라이브러리
+### 3. 단순한 합성 (Simple Composition)
+- 복잡한 모나드 체인 대신 단순 함수 호출
+- 표준 Python 기능 우선 활용
+- 가독성을 해치지 않는 선에서 합성
+- 디버깅 가능한 코드 유지
 
-### 4. 명시적 부작용 관리
-- Effect 시스템을 통한 부작용 캡슐화
-- I/O 작업을 순수 함수와 분리
-- 모나드를 통한 에러 처리
-- 타입 시스템으로 부작용 추적
+### 4. 명확한 에러 처리
+- 기본 Exception 활용, 필요시 Result 타입
+- 과도한 타입 래핑 지양
+- Python의 관용적 에러 처리 존중
+- 실용적인 에러 메시지
 
-### 5. 타입 안전성
-- Result와 Maybe 타입으로 null/error 안전성
-- 컴파일 타임 에러 감지
-- 모나드 법칙을 통한 정확성 보장
-- 타입 기반 문서화
+### 5. 점진적 개선
+- 작동하는 코드부터 시작
+- 필요에 따라 함수형 개념 도입
+- 리팩토링을 통한 점진적 개선
+- 실제 문제 해결에 집중
 
-### 6. 이벤트 소싱
-- 모든 상태 변경을 이벤트로 기록
-- 상태는 이벤트 스트림의 fold 결과
-- 완벽한 감사 추적
-- 시스템 상태의 재현 가능성
+### 6. 필요시 고급 기능
+- Event sourcing은 감사 추적 필요시만
+- 모나드는 복잡한 에러 처리시만
+- Effect 시스템은 테스트 격리 필요시만
+- YAGNI (You Aren't Gonna Need It) 원칙
 
 ## 함수형 구성요소 상호작용
 
@@ -353,34 +355,43 @@ def apply_plugins(plugins: list[PluginFunction], event: Event) -> Event:
 - **epoll 활용**: Linux/Unix 최적화된 다중 스트림 처리
 - **Context manager 최적화**: RAII 패턴으로 리소스 관리 오버헤드 최소화
 
-## 함수형 테스트 전략
+## 실용적 테스트 전략
 
-### 테스트 범주
-1. **순수 함수 테스트**: Property-based testing으로 모든 순수 함수 검증
-2. **모나드 법칙 테스트**: 수학적 모나드 법칙 준수 검증
-3. **Effect 테스트**: I/O Effect를 모킹하여 부작용 없이 테스트
-4. **이벤트 소싱 테스트**: 이벤트 재생을 통한 상태 일관성 검증
-5. **스트림 테스트**: 비동기 스트림 처리 검증
+### 테스트 우선순위
+1. **단위 테스트 우선**: 기본 pytest로 핵심 로직 테스트
+2. **통합 테스트**: 실제 PTY 동작 검증
+3. **E2E 테스트**: 사용자 시나리오 기반
+4. **Property-based (선택)**: 복잡한 로직에만 적용
+5. **성능 테스트**: 실제 병목 현상 발생시
 
-### 함수형 테스트 기법
+### 실용적 테스트 기법
 ```python
-# Property-based testing 예시
+# 기본 단위 테스트
+def test_parse_ansi_sequence():
+    """간단하고 명확한 테스트"""
+    result = parse_ansi_sequence("\x1b[31m")
+    assert result.color == "red"
+    assert result.type == "color"
+
+# 통합 테스트
+def test_pty_basic_io():
+    """실제 PTY 동작 테스트"""
+    with PTYWrapper() as pty:
+        pty.write("echo hello\n")
+        output = pty.read()
+        assert "hello" in output
+
+# Property-based는 필요시만
 @given(st.text())
-def test_ansi_parsing_inverse(text: str):
-    parsed = parse_ansi_sequence(text)
-    reconstructed = reconstruct_ansi_sequence(parsed)
-    assert reconstructed == text
-
-# 모나드 법칙 테스트
-def test_result_monad_laws():
-    # Left Identity, Right Identity, Associativity 검증
-    pass
-
-# Effect 모킹
-def test_pty_operations():
-    mock_effect = IOEffect(lambda: b"test_data")
-    result = pty_read_pipeline(mock_effect)
-    assert result.is_ok()
+def test_data_encoding_safety(text: str):
+    """인코딩 안전성 검증"""
+    try:
+        encoded = encode_for_pty(text)
+        decoded = decode_from_pty(encoded)
+        assert isinstance(decoded, str)
+    except UnicodeError:
+        # 예상된 에러는 통과
+        pass
 ```
 
 ## 지원 플랫폼
@@ -716,3 +727,30 @@ def test_command_effects_with_mocking():
 ```
 
 이 아키텍처는 Unix 계열 전용 최적화를 통해 최대 성능을 달성하며 견고하고 확장 가능한 터미널 래퍼를 구축하기 위한 견고한 기반을 제공합니다.
+
+## 실용적 개선 노트 (2025-06-22 업데이트)
+
+### 현재 상태
+- Phase 1 (기본 PTY 래퍼) 구현 완료
+- 과도한 함수형 설계를 실용적 접근으로 전환 중
+- 핵심 기능 동작 확인, 점진적 개선 진행
+
+### 권장 개발 방향
+1. **작동하는 MVP 우선**: 기본 터미널 기능부터 완성
+2. **점진적 함수형 도입**: 필요한 부분만 순수 함수로 추출
+3. **실제 사용 피드백**: 사용자 요구사항 기반 기능 추가
+4. **성능 측정 후 최적화**: 실제 병목 지점만 개선
+
+### 피해야 할 것들
+- 모든 것을 모나드로 래핑
+- 과도한 타입 추상화
+- 불필요한 함수형 라이브러리 도입
+- Property-based testing 강제
+- 3중 하이재킹 시스템
+
+### 집중해야 할 것들
+- 안정적인 PTY 처리
+- 명확한 에러 메시지
+- 간단한 CLI 인터페이스
+- 실용적인 테스트
+- 점진적 개선
