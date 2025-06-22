@@ -45,6 +45,7 @@ Documentation = "https://term2ai.readthedocs.io"
 
 [dependency-groups]
 dev = [
+    "bandit>=1.7.5",
     "black>=25.1.0",
     "hypothesis>=6.135.14",
     "mypy>=1.16.1",
