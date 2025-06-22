@@ -26,7 +26,7 @@ class PTYConfig(BaseModel):
     shell_type: ShellType = Field(default=ShellType.BASH)
     env_vars: dict[str, str] = Field(default_factory=dict)
     working_directory: str | None = Field(default=None)
-    timeout: float = Field(default=30.0, gt=0)
+    timeout: float = Field(default=30.0)
 
     class Config:
         frozen = True
