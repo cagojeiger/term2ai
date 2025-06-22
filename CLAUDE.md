@@ -75,11 +75,20 @@ uv run pytest --cov-report=html
 
 ### CLI Application
 ```bash
-# Run the main CLI (currently returns hello message - project in early development)
+# Current basic functionality (Checkpoint 0)
 uv run python -c "from term2ai import hello; print(hello())"
 
-# Future CLI interface (when implemented)
-uv run term2ai --help
+# CLI interface (Checkpoint 2.5 - planned)
+uv run term2ai --help                    # Show help
+uv run term2ai start                     # Start transparent terminal session
+uv run term2ai start --hijack all        # Full hijacking mode
+uv run term2ai stats --last             # Show last session stats
+uv run term2ai config show              # Show current configuration
+
+# Advanced CLI usage (post Checkpoint 2.5)
+uv run term2ai session list             # List active sessions
+uv run term2ai monitor --dashboard      # Real-time monitoring dashboard
+uv run term2ai doctor                   # System diagnostics
 ```
 
 ## Architecture Overview
@@ -145,6 +154,7 @@ The project follows a checkpoint-based development approach with detailed specif
 - **Checkpoint 1**: Basic PTY wrapper + blessed integration (📋 Pending - Next priority)
 - **Checkpoint 1.5**: Global hijacking system (keyboard + pynput + blessed) (📋 Pending)
 - **Checkpoint 2**: I/O handling + global input integration (📋 Pending)
+- **Checkpoint 2.5**: CLI interface (`term2ai` command) (📋 Pending)
 - **Checkpoint 3**: Terminal state management (📋 Pending)
 - **Checkpoint 4**: Signal handling (📋 Pending)
 - **Checkpoint 5**: ANSI parsing (📋 Pending)
