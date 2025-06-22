@@ -446,4 +446,273 @@ print(f"예상 성능: {get_expected_performance()}")
 - **macOS 개발자**: 성능 그룹 필수 설치
 - **Unix 전용 테스트**: 의존성 그룹별 테스트 자동화
 
+## CLI 아키텍처
+
+### CLI 명령어 처리 파이프라인
+
+Term2AI의 CLI는 함수형 프로그래밍 패러다임을 따라 모든 명령어 처리를 순수 함수와 Effect 시스템으로 구현합니다:
+
+```
+사용자 입력 (CLI 명령어)
+        ↓
+┌─────────────────────────────────────────────────────┐
+│          순수 함수 명령어 파싱 레이어                  │
+│  • parse_cli_args: list[str] -> Result[Command]    │
+│  • validate_options: Options -> Result[Options]    │
+│  • generate_help: Command -> str                   │
+└─────────────────┬───────────────────────────────────┘
+                  ↓
+┌─────────────────────────────────────────────────────┐
+│            Effect 명령어 실행 레이어                  │
+│  • start_session_effect: Config -> IOEffect[Session]│
+│  • show_stats_effect: ID -> IOEffect[Stats]        │
+│  • manage_config_effect: Action -> IOEffect[Config]│
+└─────────────────┬───────────────────────────────────┘
+                  ↓
+┌─────────────────────────────────────────────────────┐
+│          출력 포맷팅 및 렌더링 레이어                 │
+│  • format_output: Result -> str (순수 함수)        │
+│  • render_table: Data -> Table (Rich 통합)         │
+│  • apply_colors: Text -> StyledText                │
+└─────────────────────────────────────────────────────┘
+```
+
+### CLI 모듈 구조
+
+```
+src/term2ai/cli/
+├── main.py           # Typer 앱 엔트리포인트
+├── commands/         # 명령어 구현
+│   ├── start.py      # 세션 시작 명령어
+│   ├── stats.py      # 통계 명령어
+│   ├── config.py     # 설정 관리 명령어
+│   ├── doctor.py     # 시스템 진단 명령어
+│   ├── interactive.py # 대화형 모드
+│   ├── record.py     # 세션 녹화
+│   ├── replay.py     # 세션 재생
+│   ├── analyze.py    # 세션 분석
+│   ├── benchmark.py  # 성능 측정
+│   └── profile.py    # 프로필 관리
+├── parsers/          # 순수 함수 파서
+│   ├── args.py       # 인자 파싱
+│   ├── options.py    # 옵션 검증
+│   └── config.py     # 설정 파싱
+├── effects/          # Effect 시스템
+│   ├── session.py    # 세션 관련 Effect
+│   ├── io.py         # I/O Effect
+│   └── config.py     # 설정 Effect
+├── formatters/       # 출력 포맷터
+│   ├── table.py      # 테이블 포맷
+│   ├── json.py       # JSON 포맷
+│   └── progress.py   # 진행률 표시
+└── interactive/      # 대화형 모드
+    ├── stream.py     # 입력 스트림 처리
+    ├── completion.py # 자동완성
+    └── prompt.py     # 프롬프트 관리
+```
+
+### 함수형 CLI 설계 패턴
+
+#### 1. 명령어 파싱 (순수 함수)
+```python
+# 모든 파싱은 부작용 없는 순수 함수
+def parse_cli_args(args: list[str]) -> Result[CLICommand, ParseError]:
+    """CLI 인자를 파싱하여 명령어 객체 생성"""
+    if not args:
+        return Err(ParseError("No command provided"))
+
+    command_name = args[0]
+    options = parse_options(args[1:])
+
+    return Ok(CLICommand(name=command_name, options=options))
+
+def validate_cli_options(command: CLICommand) -> Result[CLICommand, ValidationError]:
+    """명령어 옵션의 유효성 검증"""
+    validators = get_validators_for_command(command.name)
+
+    for validator in validators:
+        result = validator(command.options)
+        if result.is_err():
+            return result
+
+    return Ok(command)
+```
+
+#### 2. Effect 기반 명령어 실행
+```python
+# 모든 부작용은 IOEffect로 캡슐화
+def execute_command(command: CLICommand) -> IOEffect[CommandResult]:
+    """명령어를 실행하는 Effect 생성"""
+
+    # Effect 딕셔너리에서 적절한 Effect 선택
+    effect_map = {
+        'start': start_terminal_session_effect,
+        'stats': show_session_stats_effect,
+        'config': manage_config_effect,
+        'doctor': run_diagnostics_effect,
+    }
+
+    effect_fn = effect_map.get(command.name, unknown_command_effect)
+    return effect_fn(command.options)
+
+# Effect 합성을 통한 복잡한 명령어
+def start_terminal_session_effect(options: CLIOptions) -> IOEffect[Session]:
+    """터미널 세션을 시작하는 Effect 체인"""
+    return (
+        validate_environment_effect()
+        .bind(lambda _: load_config_effect(options.config_path))
+        .bind(lambda config: create_pty_effect(config))
+        .bind(lambda pty: setup_hijacking_effect(pty, options.hijack_level))
+        .bind(lambda hijacker: create_session_effect(hijacker))
+        .map(lambda session: log_session_start(session))
+    )
+```
+
+#### 3. 대화형 모드 스트림 처리
+```python
+# 사용자 입력을 함수형 스트림으로 처리
+def create_interactive_stream() -> IOEffect[AsyncStream[UserInput]]:
+    """대화형 모드의 입력 스트림 생성"""
+    return IOEffect(lambda: create_async_input_stream())
+
+def process_interactive_commands(
+    stream: AsyncStream[UserInput]
+) -> AsyncStream[CommandResult]:
+    """입력 스트림을 명령어 결과 스트림으로 변환"""
+    return (
+        stream
+        .map(parse_interactive_input)      # 순수 함수
+        .filter(is_valid_command)          # 순수 함수
+        .map(create_command_effect)        # Effect 생성
+        .map(execute_effect_async)         # Effect 실행
+        .map(format_command_result)        # 순수 함수
+    )
+```
+
+#### 4. 설정 관리 시스템
+```python
+# 불변 설정 객체와 순수 함수 조작
+@dataclass(frozen=True)
+class CLIConfig:
+    shell: str = "/bin/bash"
+    hijack_level: str = "minimal"
+    filters: tuple[str, ...] = ()
+    performance: PerformanceConfig = field(default_factory=PerformanceConfig)
+
+def merge_configs(base: CLIConfig, override: CLIConfig) -> CLIConfig:
+    """두 설정을 병합하는 순수 함수"""
+    return CLIConfig(
+        shell=override.shell or base.shell,
+        hijack_level=override.hijack_level or base.hijack_level,
+        filters=base.filters + override.filters,
+        performance=merge_performance_configs(base.performance, override.performance)
+    )
+
+def apply_cli_overrides(config: CLIConfig, options: CLIOptions) -> CLIConfig:
+    """CLI 옵션으로 설정을 오버라이드"""
+    overrides = CLIConfig(
+        shell=options.shell,
+        hijack_level=options.hijack_level,
+        filters=tuple(options.filters or [])
+    )
+    return merge_configs(config, overrides)
+```
+
+#### 5. 세션 녹화 시스템
+```python
+# 이벤트 소싱 기반 세션 녹화
+@dataclass(frozen=True)
+class SessionEvent:
+    timestamp: datetime
+    event_type: str
+    data: dict
+
+def record_session_events(session: Session) -> IOEffect[AsyncStream[SessionEvent]]:
+    """세션 이벤트를 기록하는 스트림 생성"""
+    return (
+        create_event_stream_effect(session)
+        .map(lambda stream:
+            stream
+            .map(create_session_event)     # 순수 함수
+            .scan(EventStore.empty(), append_event)  # 이벤트 누적
+        )
+    )
+
+def replay_session_events(events: list[SessionEvent]) -> IOEffect[None]:
+    """녹화된 세션을 재생"""
+    return sequence_effects([
+        replay_event_effect(event, calculate_delay(event, next_event))
+        for event, next_event in zip(events, events[1:] + [None])
+    ])
+```
+
+### CLI 하이재킹 레벨 아키텍처
+
+```
+하이재킹 레벨 설정:
+┌─────────────────────────────────────────────────────┐
+│ minimal:  PTY만 사용                                │
+│           └─> PTYWrapper + 기본 I/O                 │
+├─────────────────────────────────────────────────────┤
+│ standard: PTY + 키보드 캡처                         │
+│           └─> PTYWrapper + keyboard 라이브러리      │
+├─────────────────────────────────────────────────────┤
+│ complete: PTY + 키보드 + 마우스 + blessed           │
+│           └─> 완전한 터미널 제어                    │
+└─────────────────────────────────────────────────────┘
+```
+
+### CLI 성능 최적화
+
+#### 1. 명령어 파싱 최적화
+- 파서 결과 캐싱
+- 정규식 사전 컴파일
+- 지연 평가 활용
+
+#### 2. Effect 실행 최적화
+- Effect 배치 처리
+- 병렬 Effect 실행
+- 리소스 풀링
+
+#### 3. 출력 렌더링 최적화
+- 증분 렌더링
+- 버퍼링된 출력
+- 비동기 렌더링
+
+### CLI 테스트 전략
+
+#### 1. Property-Based CLI 테스트
+```python
+@given(st.lists(st.text()))
+def test_cli_parsing_properties(args: list[str]):
+    """CLI 파싱의 수학적 속성 검증"""
+    result = parse_cli_args(args)
+
+    # 속성 1: 파싱은 결정적이다
+    assert parse_cli_args(args) == result
+
+    # 속성 2: 유효한 명령어는 항상 파싱 가능
+    if result.is_ok():
+        formatted = format_command(result.unwrap())
+        reparsed = parse_cli_args(formatted.split())
+        assert reparsed.is_ok()
+```
+
+#### 2. Effect 모킹 테스트
+```python
+def test_command_effects_with_mocking():
+    """Effect를 모킹하여 명령어 로직 테스트"""
+    mock_pty_effect = IOEffect.pure(MockPTYHandle())
+    mock_config_effect = IOEffect.pure(MockConfig())
+
+    # Effect 주입을 통한 테스트
+    result = run_command_with_effects(
+        command="start",
+        pty_effect=mock_pty_effect,
+        config_effect=mock_config_effect
+    )
+
+    assert result.is_ok()
+```
+
 이 아키텍처는 Unix 계열 전용 최적화를 통해 최대 성능을 달성하며 견고하고 확장 가능한 터미널 래퍼를 구축하기 위한 견고한 기반을 제공합니다.

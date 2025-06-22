@@ -726,4 +726,255 @@ def old_method(self):
 - **메모리**: MB
 - **CPU**: 사용률
 
+## CLI 관련 결정사항
+
+### 1. CLI 프레임워크: Typer vs Click vs argparse
+
+#### 결정: Typer (Click 기반) + Rich
+**근거:**
+- **타입 힌트 기반**: Python 타입 힌트를 사용한 자동 CLI 생성
+- **함수형 친화적**: 데코레이터 기반으로 순수 함수와 잘 통합
+- **Rich 통합**: 아름다운 터미널 출력과 자연스럽게 결합
+- **자동 도움말**: 타입 정보에서 자동으로 도움말 생성
+- **서브커맨드**: 복잡한 CLI 구조를 깔끔하게 지원
+
+**구현 전략:**
+```python
+# Typer를 함수형으로 래핑
+@app.command()
+def start(...) -> None:
+    """명령어 자체는 thin wrapper"""
+    effect = create_start_effect(...)  # 실제 로직은 Effect로
+    run_effect(effect)  # Effect 실행
+```
+
+**트레이드오프:**
+- **의존성 추가**: Click과 Typer 모두 필요
+- **함수형 래핑**: 명령어 함수를 Effect로 변환하는 추가 작업
+- **장점**: 타입 안전성, 자동 문서화, 사용자 친화적 인터페이스
+
+### 2. 세션 녹화 형식: 커스텀 vs 표준
+
+#### 결정: 다중 형식 지원 (JSON 네이티브 + Asciinema + Script)
+**근거:**
+- **JSON 네이티브**: 이벤트 소싱과 자연스럽게 통합, AI 분석 용이
+- **Asciinema**: 널리 사용되는 표준, 웹 재생 지원
+- **Script**: Unix 표준 도구와 호환성
+
+**형식별 특징:**
+```python
+# JSON 네이티브 형식 (기본)
+{
+    "version": "1.0",
+    "metadata": {...},
+    "events": [
+        {"timestamp": 0.0, "type": "output", "data": "..."},
+        {"timestamp": 0.5, "type": "input", "data": "..."}
+    ]
+}
+
+# Asciinema v2 형식
+{
+    "version": 2,
+    "width": 80,
+    "height": 24,
+    "timestamp": 1234567890,
+    "env": {"SHELL": "/bin/bash"},
+    "stdout": [[0.0, "o", "data"], ...]
+}
+```
+
+**트레이드오프:**
+- **복잡성**: 여러 형식 지원으로 코드 복잡도 증가
+- **유연성**: 사용자가 필요에 따라 형식 선택 가능
+- **호환성**: 기존 도구들과 원활한 통합
+
+### 3. 하이재킹 레벨 설계
+
+#### 결정: 3단계 하이재킹 레벨 시스템
+**구조:**
+```
+minimal:  PTY만 (기본값)
+standard: PTY + 키보드
+complete: PTY + 키보드 + 마우스 + blessed
+```
+
+**근거:**
+- **점진적 제어**: 사용자가 필요한 만큼만 제어 수준 선택
+- **성능 최적화**: 불필요한 하이재킹으로 인한 오버헤드 방지
+- **보안 고려**: 높은 레벨일수록 더 많은 권한 필요
+
+**구현:**
+```python
+@dataclass(frozen=True)
+class HijackingLevel:
+    pty: bool = True  # 항상 활성화
+    keyboard: bool = False
+    mouse: bool = False
+    blessed: bool = False
+
+    @classmethod
+    def from_string(cls, level: str) -> 'HijackingLevel':
+        return {
+            'minimal': cls(pty=True),
+            'standard': cls(pty=True, keyboard=True),
+            'complete': cls(pty=True, keyboard=True, mouse=True, blessed=True)
+        }[level]
+```
+
+### 4. 프로필 시스템 설계
+
+#### 결정: 계층적 프로필 상속
+**구조:**
+```
+default (내장)
+  ├── development (사용자 정의)
+  │   └── debug (파생)
+  └── production (사용자 정의)
+      └── secure (파생)
+```
+
+**근거:**
+- **재사용성**: 기본 프로필에서 파생하여 중복 최소화
+- **유연성**: 환경별 설정을 쉽게 전환
+- **일관성**: 모든 프로필이 동일한 구조 따름
+
+**프로필 병합 전략:**
+```python
+def merge_profiles(base: Profile, override: Profile) -> Profile:
+    """프로필 병합 (순수 함수)"""
+    return Profile(
+        name=override.name,
+        parent=base.name,
+        settings=merge_settings(base.settings, override.settings)
+    )
+```
+
+### 5. 실시간 필터링 아키텍처
+
+#### 결정: 파이프라인 기반 필터 체인
+**구조:**
+```
+입력 스트림 → 필터1 → 필터2 → ... → 출력 스트림
+```
+
+**필터 타입:**
+- **정규식 필터**: 패턴 매칭 기반 필터링
+- **의미론적 필터**: 비밀번호, 토큰 등 자동 감지
+- **변환 필터**: 대소문자 변환, 색상화 등
+
+**구현:**
+```python
+# 필터는 순수 함수
+Filter = Callable[[str], Maybe[str]]
+
+def compose_filters(filters: list[Filter]) -> Filter:
+    """필터 합성 (순수 함수)"""
+    def composed(data: str) -> Maybe[str]:
+        result = Some(data)
+        for filter_fn in filters:
+            if result.is_nothing():
+                break
+            result = result.bind(filter_fn)
+        return result
+    return composed
+```
+
+### 6. 벤치마크 메트릭 선택
+
+#### 결정: 4대 핵심 메트릭 + 비교 기준
+**메트릭:**
+1. **처리량 (Throughput)**: MB/s 단위, 대량 데이터 처리 능력
+2. **지연시간 (Latency)**: ms 단위, 입력-출력 반응 시간
+3. **메모리 사용량**: MB 단위, 피크 및 평균
+4. **CPU 사용률**: %, 유휴 시간 포함
+
+**비교 기준:**
+- `native`: 순수 터미널 (bash)
+- `screen`: GNU Screen
+- `tmux`: tmux 세션
+
+**측정 방법:**
+```python
+@dataclass(frozen=True)
+class BenchmarkResult:
+    metric: str
+    value: float
+    unit: str
+    baseline_ratio: float  # 기준 대비 비율
+
+def run_throughput_benchmark() -> IOEffect[BenchmarkResult]:
+    """처리량 벤치마크 (Effect)"""
+    return (
+        create_test_data_effect(size_mb=100)
+        .bind(lambda data: measure_throughput_effect(data))
+        .map(calculate_mb_per_second)
+        .map(lambda mbps: BenchmarkResult(
+            metric="throughput",
+            value=mbps,
+            unit="MB/s",
+            baseline_ratio=mbps / NATIVE_BASELINE
+        ))
+    )
+```
+
+### 7. 대화형 모드 설계
+
+#### 결정: 스트림 기반 REPL with 자동완성
+**구조:**
+```
+입력 스트림 → 파서 → 검증 → 실행 → 포맷팅 → 출력 스트림
+     ↑                                            ↓
+     └──────────── 자동완성 엔진 ←─────────────────┘
+```
+
+**기능:**
+- **실시간 자동완성**: 명령어, 옵션, 파일명
+- **히스토리**: 화살표 키로 이전 명령어
+- **인라인 도움말**: 입력 중 도움말 표시
+- **상태 표시**: 현재 세션 정보 상단 표시
+
+**구현:**
+```python
+def create_interactive_pipeline() -> IOEffect[AsyncStream[CommandResult]]:
+    """대화형 파이프라인 생성"""
+    return (
+        create_input_stream_effect()
+        .map(lambda stream:
+            stream
+            .map(enrich_with_completions)
+            .map(parse_interactive_command)
+            .filter(is_valid_command)
+            .map(execute_command_effect)
+            .map(format_result_with_colors)
+        )
+    )
+```
+
+### 8. 플러그인 보안 모델
+
+#### 결정: 샌드박스 + 권한 기반 시스템
+**보안 레벨:**
+1. **읽기 전용**: 데이터 읽기만 가능
+2. **필터링**: 데이터 변환 가능
+3. **전체 제어**: 모든 기능 접근 (신뢰된 플러그인만)
+
+**샌드박스 구현:**
+```python
+@dataclass(frozen=True)
+class PluginPermissions:
+    read_session: bool = True
+    modify_output: bool = False
+    access_network: bool = False
+    access_filesystem: bool = False
+
+def create_plugin_sandbox(permissions: PluginPermissions) -> PluginSandbox:
+    """플러그인 샌드박스 생성"""
+    return PluginSandbox(
+        allowed_modules=get_allowed_modules(permissions),
+        resource_limits=get_resource_limits(permissions),
+        capability_filter=create_capability_filter(permissions)
+    )
+```
+
 이러한 기술적 결정사항들은 term2ai가 안정적이고 확장 가능하며 고성능인 터미널 래퍼가 되도록 하는 기반을 제공합니다.

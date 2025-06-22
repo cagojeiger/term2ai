@@ -772,33 +772,350 @@ class PluginError(Term2AIError):
 
 ## CLI API
 
-### 명령줄 인터페이스
+### 함수형 CLI 인터페이스
+Term2AI의 CLI는 함수형 프로그래밍 패러다임을 따라 모든 명령어를 순수 함수와 Effect로 구현합니다.
+
+#### 기본 명령어 API
 ```python
 import typer
+from term2ai.monads import IOEffect, Result
+from term2ai.cli.types import CLICommand, CLIOptions
 
 app = typer.Typer()
 
+# 메인 엔트리포인트
+def cli_main(args: list[str]) -> IOEffect[int]:
+    """함수형 CLI 메인 함수"""
+    return (
+        parse_cli_args_effect(args)
+        .bind(validate_cli_command)
+        .bind(execute_cli_command)
+        .bind(format_cli_output)
+        .map(lambda _: 0)
+        .recover(handle_cli_error)
+    )
+
 @app.command()
 def start(
-    shell: str = "/bin/bash",
-    config: Optional[str] = None,
-    verbose: bool = False
+    shell: str = typer.Option("/bin/bash", help="실행할 셸 경로"),
+    config: Optional[str] = typer.Option(None, help="설정 파일 경로"),
+    hijack_level: str = typer.Option("minimal", help="하이재킹 레벨"),
+    filter_passwords: bool = typer.Option(False, help="비밀번호 필터링"),
+    verbose: bool = typer.Option(False, help="상세 출력 모드")
 ) -> None:
-    """터미널 래퍼 시작"""
+    """터미널 세션 시작"""
+    effect = start_terminal_session_effect(
+        shell=shell,
+        config_path=config,
+        hijack_level=hijack_level,
+        filters={"passwords": filter_passwords},
+        verbose=verbose
+    )
+    run_effect(effect)
 
+@app.command()
+def stats(
+    session_id: Optional[str] = typer.Option(None, help="세션 ID"),
+    last: bool = typer.Option(False, help="마지막 세션 통계"),
+    format: str = typer.Option("table", help="출력 형식"),
+    metric: Optional[str] = typer.Option(None, help="특정 메트릭")
+) -> None:
+    """세션 통계 표시"""
+    effect = show_session_stats_effect(
+        session_id=session_id,
+        last=last,
+        output_format=format,
+        metric_filter=metric
+    )
+    run_effect(effect)
+```
+
+#### 세션 관리 API
+```python
+# 세션 녹화
 @app.command()
 def record(
-    output_file: str,
-    shell: str = "/bin/bash"
+    output: str = typer.Argument(..., help="출력 파일 경로"),
+    format: str = typer.Option("json", help="녹화 형식"),
+    compress: bool = typer.Option(False, help="압축 활성화"),
+    timestamp: bool = typer.Option(True, help="타임스탬프 포함")
 ) -> None:
-    """세션 기록"""
+    """세션 녹화"""
+    effect = record_session_effect(
+        output_path=output,
+        format=RecordFormat[format.upper()],
+        compression_enabled=compress,
+        include_timestamps=timestamp
+    )
+    run_effect(effect)
 
+# 세션 재생
 @app.command()
 def replay(
-    input_file: str,
-    speed: float = 1.0
+    input: str = typer.Argument(..., help="입력 파일 경로"),
+    speed: float = typer.Option(1.0, help="재생 속도"),
+    pause_on_output: bool = typer.Option(False, help="출력 시 일시정지"),
+    skip_idle: Optional[float] = typer.Option(None, help="유휴 시간 건너뛰기")
 ) -> None:
     """세션 재생"""
+    effect = replay_session_effect(
+        input_path=input,
+        playback_speed=speed,
+        pause_on_output=pause_on_output,
+        skip_idle_threshold=skip_idle
+    )
+    run_effect(effect)
+
+# 세션 관리 서브커맨드
+session_app = typer.Typer()
+app.add_typer(session_app, name="session")
+
+@session_app.command()
+def list() -> None:
+    """세션 목록 표시"""
+    effect = list_sessions_effect()
+    run_effect(effect)
+
+@session_app.command()
+def export(
+    session_id: str = typer.Argument(..., help="세션 ID"),
+    format: str = typer.Option("json", help="내보내기 형식"),
+    output: Optional[str] = typer.Option(None, help="출력 파일")
+) -> None:
+    """세션 내보내기"""
+    effect = export_session_effect(session_id, format, output)
+    run_effect(effect)
+```
+
+#### 고급 기능 API
+```python
+# 분석 명령어
+@app.command()
+def analyze(
+    pattern: str = typer.Option(None, help="분석할 패턴"),
+    session_id: Optional[str] = typer.Option(None, help="세션 ID"),
+    time_range: Optional[str] = typer.Option(None, help="시간 범위"),
+    ai_model: Optional[str] = typer.Option(None, help="AI 모델 사용")
+) -> None:
+    """세션 분석"""
+    effect = analyze_session_effect(
+        pattern=pattern,
+        session_id=session_id,
+        time_range=parse_time_range(time_range),
+        ai_model=ai_model
+    )
+    run_effect(effect)
+
+# 벤치마크 명령어
+@app.command()
+def benchmark(
+    metric: str = typer.Option("all", help="측정할 메트릭"),
+    duration: int = typer.Option(60, help="테스트 시간(초)"),
+    compare_with: Optional[str] = typer.Option(None, help="비교 기준"),
+    output: Optional[str] = typer.Option(None, help="결과 저장")
+) -> None:
+    """성능 벤치마크"""
+    effect = run_benchmark_effect(
+        metric=BenchmarkMetric[metric.upper()],
+        duration_seconds=duration,
+        baseline=compare_with,
+        output_path=output
+    )
+    run_effect(effect)
+
+# 프로필 관리
+profile_app = typer.Typer()
+app.add_typer(profile_app, name="profile")
+
+@profile_app.command()
+def create(
+    name: str = typer.Argument(..., help="프로필 이름"),
+    base: str = typer.Option("default", help="기본 프로필")
+) -> None:
+    """프로필 생성"""
+    effect = create_profile_effect(name, base)
+    run_effect(effect)
+```
+
+### 대화형 모드 API
+```python
+# 대화형 CLI
+@app.command()
+def interactive() -> None:
+    """대화형 모드 시작"""
+    effect = start_interactive_mode_effect()
+    run_effect(effect)
+
+# 대화형 모드 스트림 API
+def create_interactive_session() -> IOEffect[InteractiveSession]:
+    """대화형 세션 생성"""
+    return IOEffect(lambda: InteractiveSession(
+        input_stream=create_stdin_stream(),
+        output_stream=create_stdout_stream(),
+        completion_engine=create_completion_engine()
+    ))
+
+def process_interactive_input(
+    session: InteractiveSession
+) -> IOEffect[AsyncStream[CommandResult]]:
+    """대화형 입력 처리"""
+    return session.input_stream.map(
+        lambda stream: stream
+        .map(parse_interactive_command)
+        .filter(is_valid_interactive_command)
+        .map(execute_interactive_command)
+        .map(format_interactive_result)
+    )
+```
+
+### 설정 관리 API
+```python
+# 설정 명령어
+config_app = typer.Typer()
+app.add_typer(config_app, name="config")
+
+@config_app.command()
+def show() -> None:
+    """현재 설정 표시"""
+    effect = show_config_effect()
+    run_effect(effect)
+
+@config_app.command()
+def set(
+    key: str = typer.Argument(..., help="설정 키"),
+    value: str = typer.Argument(..., help="설정 값")
+) -> None:
+    """설정 값 변경"""
+    effect = update_config_effect(key, value)
+    run_effect(effect)
+
+# 설정 관리 순수 함수
+def parse_config_key(key: str) -> Result[ConfigKey, ConfigError]:
+    """설정 키 파싱 및 검증"""
+    parts = key.split('.')
+    if not all(parts):
+        return Err(ConfigError("Invalid config key"))
+    return Ok(ConfigKey(parts))
+
+def merge_config_values(
+    base: Config,
+    overrides: dict[str, Any]
+) -> Config:
+    """설정 값 병합 (순수 함수)"""
+    return Config(
+        **{**base.dict(), **overrides}
+    )
+```
+
+### 플러그인 시스템 API
+```python
+# 플러그인 명령어
+plugin_app = typer.Typer()
+app.add_typer(plugin_app, name="plugin")
+
+@plugin_app.command()
+def install(
+    name: str = typer.Argument(..., help="플러그인 이름"),
+    source: Optional[str] = typer.Option(None, help="플러그인 소스")
+) -> None:
+    """플러그인 설치"""
+    effect = install_plugin_effect(name, source)
+    run_effect(effect)
+
+@plugin_app.command()
+def list() -> None:
+    """설치된 플러그인 목록"""
+    effect = list_plugins_effect()
+    run_effect(effect)
+
+# 플러그인 로더 API
+def load_plugin_manifest(path: str) -> Result[PluginManifest, PluginError]:
+    """플러그인 매니페스트 로드 (순수 함수)"""
+    try:
+        with open(path) as f:
+            data = json.load(f)
+        return Ok(PluginManifest(**data))
+    except Exception as e:
+        return Err(PluginError(str(e)))
+
+def validate_plugin_compatibility(
+    manifest: PluginManifest,
+    system_version: Version
+) -> Result[None, CompatibilityError]:
+    """플러그인 호환성 검증 (순수 함수)"""
+    if manifest.min_version > system_version:
+        return Err(CompatibilityError("Plugin requires newer version"))
+    return Ok(None)
+```
+
+### Effect 실행 시스템
+```python
+# Effect 실행 헬퍼
+def run_effect[T](effect: IOEffect[T]) -> None:
+    """Effect를 실행하고 결과 처리"""
+    try:
+        result = effect.run()
+        if isinstance(result, Result):
+            if result.is_err():
+                handle_error(result.unwrap_err())
+            else:
+                handle_success(result.unwrap())
+        else:
+            handle_success(result)
+    except Exception as e:
+        handle_exception(e)
+
+# 에러 처리
+def handle_cli_error(error: CLIError) -> IOEffect[int]:
+    """CLI 에러를 처리하고 종료 코드 반환"""
+    return IOEffect(lambda: {
+        console.print(f"[red]Error:[/red] {error}")
+        return 1
+    })
+
+# 비동기 Effect 실행
+async def run_async_effect[T](effect: IOEffect[T]) -> T:
+    """비동기 Effect 실행"""
+    if hasattr(effect, 'run_async'):
+        return await effect.run_async()
+    else:
+        return await asyncio.to_thread(effect.run)
+```
+
+### CLI 테스트 API
+```python
+# 테스트 명령어
+@app.command()
+def test(
+    scenario: Optional[str] = typer.Option(None, help="테스트 시나리오"),
+    property_based: bool = typer.Option(False, help="Property-based 테스트"),
+    coverage: bool = typer.Option(False, help="커버리지 측정")
+) -> None:
+    """통합 테스트 실행"""
+    effect = run_tests_effect(
+        scenario=scenario,
+        use_property_based=property_based,
+        measure_coverage=coverage
+    )
+    run_effect(effect)
+
+# 테스트 헬퍼 함수
+def create_test_cli_context() -> CLIContext:
+    """테스트용 CLI 컨텍스트 생성"""
+    return CLIContext(
+        stdin=io.StringIO(),
+        stdout=io.StringIO(),
+        stderr=io.StringIO(),
+        config=Config.default()
+    )
+
+def assert_cli_output(
+    context: CLIContext,
+    expected: str
+) -> None:
+    """CLI 출력 검증"""
+    actual = context.stdout.getvalue()
+    assert actual.strip() == expected.strip()
 ```
 
 ## 네트워크 API
