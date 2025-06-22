@@ -31,6 +31,9 @@ uv run ruff check src/ tests/
 # Format code
 uv run black src/ tests/
 
+# Auto-fix linting issues
+uv run ruff check src/ tests/ --fix
+
 # Run all quality checks
 uv run ruff check src/ tests/ && uv run mypy src/term2ai && uv run black --check src/ tests/
 ```
@@ -104,7 +107,7 @@ uv run term2ai --help
 
 ### Development Workflow
 
-The project follows a checkpoint-based development approach:
+The project follows a checkpoint-based development approach with detailed specifications in `plan/checkpoints/`. Current status:
 
 - **Checkpoint 0**: Project setup (✅ Complete)
 - **Checkpoint 1**: Basic PTY wrapper (🎯 Next)
@@ -115,12 +118,19 @@ The project follows a checkpoint-based development approach:
 - **Checkpoint 6**: Session management  
 - **Checkpoint 7**: Advanced features
 
+**Development Philosophy** (from `plan/roadmap.md`):
+- **테스트 주도 개발**: Tests written first, implementation follows
+- **점진적 개발**: Incremental feature building through checkpoints  
+- **타입 안전성**: Pydantic models with comprehensive type hints
+- **문서 주도**: Documentation maintained alongside code
+
 Each checkpoint has specific acceptance criteria including:
 - All tests passing (≥95% success rate)
 - ≥90% code coverage for core functionality
 - Type checking with mypy
 - Linting with ruff
 - Context manager implementation and testing
+- Resource leak prevention verification
 
 ### Critical Implementation Requirements
 
@@ -145,9 +155,32 @@ Use pytest markers to categorize tests: `@pytest.mark.unit`, `@pytest.mark.integ
 ### Documentation
 
 The project maintains comprehensive documentation in `docs/` and `plan/`:
-- `docs/api-design.md`: API interfaces and usage patterns
-- `docs/architecture.md`: System architecture and design principles  
-- `docs/technical-decisions.md`: Technical choices and rationale
-- `plan/checkpoints/`: Detailed checkpoint specifications and requirements
+- `docs/api-design.md`: API interfaces and usage patterns with context manager examples
+- `docs/architecture.md`: System architecture and design principles including RAII pattern
+- `docs/technical-decisions.md`: Technical choices and rationale, including Context Manager vs manual resource management
+- `plan/checkpoints/`: Detailed checkpoint specifications with acceptance criteria
+- `plan/roadmap.md`: Overall development strategy and milestone tracking
 
-Always update relevant documentation when implementing features, especially for context manager interfaces and resource management patterns.
+**Documentation Requirements**:
+- Always update relevant documentation when implementing features
+- Include context manager interfaces and resource management patterns
+- Maintain Korean language sections for development philosophy
+- Update checkpoint status and acceptance criteria as features are completed
+
+### Project Dependencies
+
+**Core Dependencies**:
+- `pexpect>=4.9.0`: Terminal automation and interaction
+- `ptyprocess>=0.7.0`: Pseudo-terminal process management
+- `pydantic>=2.11.7`: Data validation and serialization
+- `rich>=14.0.0`: Terminal output formatting and styling
+- `typer>=0.16.0`: CLI application framework
+
+**Development Dependencies**:
+- `pytest>=8.4.1` with `pytest-asyncio>=1.0.0`: Testing framework
+- `mypy>=1.16.1`: Static type checking
+- `ruff>=0.12.0`: Fast Python linter
+- `black>=25.1.0`: Code formatter
+- `pytest-cov>=6.2.1`: Coverage reporting
+
+The project requires Python 3.11+ and is designed for POSIX systems (Linux/macOS).
