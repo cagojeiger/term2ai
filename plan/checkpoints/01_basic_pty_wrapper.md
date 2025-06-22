@@ -1,249 +1,254 @@
-# 체크포인트 1: 기본 PTY 래퍼
+# 체크포인트 1: 순수 함수 기반 PTY 처리
 
 ## 개요
-셸 프로세스를 생성하고 기본 입출력 작업을 처리할 수 있는 의사 터미널(PTY) 래퍼를 구현합니다. blessed 통합을 통해 고급 터미널 제어 기능도 포함하여 모든 터미널 래핑 기능의 기반이 됩니다.
+**함수형 프로그래밍 패러다임**을 사용하여 셸 프로세스를 생성하고 기본 입출력 작업을 처리할 수 있는 순수 함수 기반 의사 터미널(PTY) 시스템을 구현합니다. 모든 PTY 작업을 순수 함수와 IOEffect 모나드로 구현하여 테스트 가능하고 예측 가능한 터미널 기능의 기반을 구축합니다.
 
 ## 상태
 - **우선순위**: 높음
-- **상태**: 대기
-- **예상 시간**: 4시간
-- **의존성**: 체크포인트 0 (프로젝트 설정)
+- **상태**: 🎯 다음 단계
+- **예상 시간**: 5시간 (순수 함수 + Effect 시스템)
+- **의존성**: 체크포인트 0 (함수형 프로젝트 설정)
 
-## 기술 요구사항
+## 함수형 기술 요구사항
 
-### 1. PTY 프로세스 생성
-- **설명**: 의사 터미널에서 프로세스를 생성하는 클래스 생성
+### 1. 순수 함수 기반 PTY 설정
+- **설명**: PTY 프로세스 설정을 생성하는 순수 함수들 구현
 - **승인 기준**:
-  - ptyprocess를 사용하여 셸 프로세스 생성 가능
+  - 순수 함수로 PTY 설정 생성 (`create_pty_config`)
+  - 순수 함수로 PTY 설정 검증 (`validate_pty_config`)
+  - 셸 명령 검증을 위한 순수 함수 (`validate_shell_command`)
+  - 모든 설정이 불변 데이터 구조로 표현
   - 사용자 정의 셸 명령 지원 (bash, zsh, fish 등)
-  - 프로세스 라이프사이클 처리 (시작, 중지, 정리)
-  - 프로세스 상태 정보 제공
-  - PTY 파일 디스크립터 적절한 관리
 
-### 2. 기본 I/O 작업
-- **설명**: PTY에 대한 기본 읽기/쓰기 작업 구현
+### 2. IOEffect 모나드 기반 I/O 시스템
+- **설명**: 모든 PTY I/O 작업을 IOEffect 모나드로 캡슐화
 - **승인 기준**:
-  - PTY에 데이터 쓰기 가능 (사용자 입력 시뮬레이션)
-  - PTY에서 데이터 읽기 가능 (프로세스 출력 캡처)
-  - 블로킹 및 논블로킹 I/O 처리
-  - UTF-8 텍스트 적절한 인코딩/디코딩
-  - 버퍼 크기 적절한 관리
+  - `read_pty_effect: PTYHandle -> IOEffect[Result[bytes, IOError]]`
+  - `write_pty_effect: PTYHandle -> str -> IOEffect[Result[int, IOError]]`
+  - 순수 함수로 데이터 변환 (`decode_pty_data`, `encode_pty_data`)
+  - Result 모나드로 타입 안전한 에러 처리
+  - Effect 합성을 통한 복합 I/O 작업
 
-### 3. 프로세스 관리
-- **설명**: 프로세스 상태 및 라이프사이클 관리 처리
+### 3. 함수형 프로세스 상태 관리
+- **설명**: 프로세스 상태를 순수 함수와 이벤트 소싱으로 관리
 - **승인 기준**:
-  - 프로세스 PID 및 상태 추적
-  - 프로세스 종료 우아하게 처리
-  - 프로세스 종료 감지
-  - 종료 시 리소스 정리
-  - 프로세스 재시작 지원
+  - 순수 함수로 프로세스 상태 변환 (`update_process_state`)
+  - 불변 이벤트로 상태 변경 기록 (`ProcessEvent`)
+  - 이벤트 폴드를 통한 현재 상태 재구성 (`fold_process_events`)
+  - 순수 함수로 프로세스 검증 (`validate_process_state`)
+  - IOEffect로 프로세스 라이프사이클 관리
 
-### 4. blessed 기반 터미널 제어 통합
-- **설명**: blessed 라이브러리를 활용한 고급 터미널 제어 기능 통합
+### 4. 함수형 터미널 제어 시스템
+- **설명**: blessed 기능을 순수 함수와 Effect로 래핑
 - **승인 기준**:
-  - blessed Terminal 객체 초기화 및 관리
-  - 터미널 기능 감지 (색상 깊이, 크기, 기능)
-  - 전체 화면 모드 지원 (fullscreen context manager)
-  - 고급 커서 제어 (정확한 위치 지정, 모양 변경)
-  - 효율적인 ANSI 시퀀스 생성
-  - 터미널별 호환성 처리
+  - 순수 함수로 터미널 기능 분석 (`analyze_terminal_capabilities`)
+  - IOEffect로 터미널 초기화 (`init_terminal_effect`)
+  - 순수 함수로 ANSI 시퀀스 생성 (`generate_ansi_sequence`)
+  - 순수 함수로 커서 제어 명령 생성 (`create_cursor_commands`)
+  - Effect로 터미널 상태 변경 (`apply_terminal_changes_effect`)
 
-### 5. 오류 처리 및 리소스 관리
-- **설명**: PTY 작업을 위한 견고한 오류 처리 및 자동 리소스 관리
+### 5. 함수형 에러 처리 시스템
+- **설명**: Result 모나드와 Maybe 모나드를 통한 타입 안전 에러 처리
 - **승인 기준**:
-  - PTY 생성 실패 처리
-  - I/O 작업 오류 관리
-  - 프로세스 생성 실패 우아하게 처리
-  - blessed 터미널 제어 오류 처리
-  - 적절한 예외 타입 및 메시지
-  - 디버깅을 위한 로깅
-  - Context manager를 통한 자동 리소스 정리
-  - 예외 발생 시에도 보장되는 리소스 해제
+  - Result 모나드로 모든 실패 가능 작업 래핑
+  - Maybe 모나드로 null 안전성 보장
+  - 순수 함수로 에러 변환 및 복구 (`recover_from_error`)
+  - Effect 체인에서 에러 전파 (`bind`, `map_err`)
+  - 컴파일 타임 에러 감지를 위한 타입 힌트
 
-## 테스트 케이스
+## 함수형 테스트 케이스
 
-### 단위 테스트
+### Property-Based 단위 테스트
 
-#### test_pty_wrapper_creation
-- **설명**: PTYWrapper가 인스턴스화될 수 있는지 테스트
-- **테스트 타입**: 단위
-- **예상 동작**: PTYWrapper가 기본 설정으로 성공적으로 생성됨
+#### test_pty_config_creation_properties
+- **설명**: PTY 설정 생성 순수 함수의 속성 테스트
+- **테스트 타입**: Property-based 단위
+- **예상 동작**: 모든 유효한 입력에 대해 일관된 설정 생성
 
-#### test_spawn_shell_process
-- **설명**: 셸 프로세스 생성 테스트
-- **테스트 타입**: 단위
-- **예상 동작**: 셸 프로세스가 생성되고 올바르게 추적됨
+#### test_pty_config_validation_properties
+- **설명**: PTY 설정 검증 함수의 속성 테스트
+- **테스트 타입**: Property-based 단위
+- **예상 동작**: 검증 함수가 일관되고 예측 가능한 결과 제공
 
-#### test_write_to_pty
-- **설명**: PTY에 데이터 쓰기 테스트
-- **테스트 타입**: 단위
-- **예상 동작**: PTY에 데이터가 오류 없이 쓰여짐
+#### test_data_encoding_decoding_inverse
+- **설명**: 데이터 인코딩/디코딩의 역함수 속성 테스트
+- **테스트 타입**: Property-based 단위
+- **예상 동작**: `decode(encode(x)) == x` 항상 성립
 
-#### test_read_from_pty
-- **설명**: PTY에서 데이터 읽기 테스트
-- **테스트 타입**: 단위
-- **예상 동작**: PTY 출력에서 데이터를 읽을 수 있음
+#### test_process_state_transitions
+- **설명**: 프로세스 상태 전이 순수 함수의 속성 테스트
+- **테스트 타입**: Property-based 단위
+- **예상 동작**: 상태 전이가 항상 유효한 상태로 이어짐
 
-#### test_process_termination
-- **설명**: 프로세스 종료 처리 테스트
-- **테스트 타입**: 단위
-- **예상 동작**: 프로세스 종료가 감지되고 처리됨
+#### test_ansi_sequence_generation
+- **설명**: ANSI 시퀀스 생성 순수 함수 테스트
+- **테스트 타입**: Property-based 단위
+- **예상 동작**: 생성된 시퀀스가 항상 유효한 ANSI 형식
 
-#### test_blessed_terminal_integration
-- **설명**: blessed Terminal 객체 초기화 및 기능 테스트
-- **테스트 타입**: 단위
-- **예상 동작**: blessed Terminal이 올바르게 초기화되고 기본 기능 작동
+### 모나드 법칙 테스트
 
-#### test_terminal_capabilities_detection
-- **설명**: 터미널 기능 감지 테스트
-- **테스트 타입**: 단위
-- **예상 동작**: 터미널 크기, 색상 깊이 등 기능이 올바르게 감지됨
+#### test_result_monad_laws
+- **설명**: Result 모나드가 모나드 법칙을 만족하는지 테스트
+- **테스트 타입**: 모나드 법칙
+- **예상 동작**: Left Identity, Right Identity, Associativity 법칙 통과
 
-#### test_cursor_control
-- **설명**: blessed를 통한 커서 제어 테스트
-- **테스트 타입**: 단위
-- **예상 동작**: 커서 위치 이동 및 제어가 올바르게 작동함
+#### test_maybe_monad_laws
+- **설명**: Maybe 모나드가 모나드 법칙을 만족하는지 테스트
+- **테스트 타입**: 모나드 법칙
+- **예상 동작**: 모든 모나드 법칙 통과
 
-### 통합 테스트
+#### test_ioeffect_monad_laws
+- **설명**: IOEffect 모나드가 모나드 법칙을 만족하는지 테스트
+- **테스트 타입**: 모나드 법칙
+- **예상 동작**: Effect 합성에서 모나드 법칙 준수
 
-#### test_echo_command
-- **설명**: 전체 echo 명령 실행 테스트
-- **테스트 타입**: 통합
-- **예상 동작**: echo 명령이 예상된 출력을 생성함
+### Effect 시스템 통합 테스트
 
-#### test_interactive_shell
-- **설명**: 대화형 셸 명령 테스트
-- **테스트 타입**: 통합
-- **예상 동작**: 여러 명령이 순서대로 작동함
+#### test_effect_composition_pipeline
+- **설명**: Effect 합성을 통한 전체 PTY 파이프라인 테스트
+- **테스트 타입**: Effect 통합
+- **예상 동작**: Effect 체인이 예상대로 작동하고 에러 전파됨
 
-#### test_process_cleanup
-- **설명**: 프로세스 종료 시 리소스 정리 테스트
-- **테스트 타입**: 통합
-- **예상 동작**: 모든 리소스가 적절히 정리됨
+#### test_pty_effect_with_mocking
+- **설명**: IOEffect 모킹을 통한 PTY 작업 테스트
+- **테스트 타입**: Effect 통합
+- **예상 동작**: 실제 I/O 없이 Effect 로직 검증
 
-#### test_context_manager_usage
-- **설명**: Context manager를 통한 자동 리소스 관리 테스트
-- **테스트 타입**: 통합
-- **예상 동작**: with 문 종료 시 자동으로 리소스 정리됨
+#### test_error_handling_in_effect_chain
+- **설명**: Effect 체인에서 에러 처리 테스트
+- **테스트 타입**: Effect 통합
+- **예상 동작**: 에러가 Result 모나드로 안전하게 전파됨
 
-#### test_blessed_fullscreen_mode
-- **설명**: blessed 전체 화면 모드 통합 테스트
-- **테스트 타입**: 통합
-- **예상 동작**: 전체 화면 모드 진입/종료가 올바르게 작동함
+#### test_state_reconstruction_from_events
+- **설명**: 이벤트 소싱을 통한 프로세스 상태 재구성 테스트
+- **테스트 타입**: 이벤트 소싱 통합
+- **예상 동작**: 이벤트 스트림에서 정확한 상태 재구성
 
-#### test_pty_blessed_integration
-- **설명**: PTY와 blessed 통합 작동 테스트
-- **테스트 타입**: 통합
-- **예상 동작**: PTY 출력과 blessed 터미널 제어가 함께 작동함
+#### test_functional_terminal_control
+- **설명**: 함수형 터미널 제어 시스템 통합 테스트
+- **테스트 타입**: 터미널 제어 통합
+- **예상 동작**: 순수 함수로 생성된 명령이 올바르게 실행됨
 
-#### test_exception_safety
-- **설명**: 예외 발생 시 리소스 정리 테스트
-- **테스트 타입**: 통합
-- **예상 동작**: 예외 발생해도 리소스가 누수되지 않음
+#### test_immutability_preservation
+- **설명**: 모든 데이터 구조의 불변성 보장 테스트
+- **테스트 타입**: 불변성 통합
+- **예상 동작**: 모든 작업에서 원본 데이터 변경되지 않음
 
-### 엔드투엔드 테스트
+### 함수형 엔드투엔드 테스트
 
-#### test_basic_terminal_session
-- **설명**: 완전한 터미널 세션 테스트
-- **테스트 타입**: E2E
-- **예상 동작**: 전체 터미널 세션이 예상대로 작동함
+#### test_functional_terminal_session_pipeline
+- **설명**: 완전한 함수형 터미널 세션 파이프라인 테스트
+- **테스트 타입**: 함수형 E2E
+- **예상 동작**: 순수 함수와 Effect 합성으로 전체 세션 작동
 
-## 결과물
+#### test_event_sourcing_session_replay
+- **설명**: 이벤트 소싱을 통한 세션 재생 테스트
+- **테스트 타입**: 이벤트 소싱 E2E
+- **예상 동작**: 기록된 이벤트로 정확한 세션 상태 재현
 
-### 1. PTYWrapper 클래스
-- **위치**: src/term2ai/core/pty_wrapper.py
-- **설명**: blessed 통합 PTY 래퍼 구현
-- **인터페이스**:
+## 함수형 결과물
+
+### 1. 순수 함수 PTY 모듈
+- **위치**: src/term2ai/pure/pty_functions.py
+- **설명**: PTY 작업을 위한 순수 함수 컬렉션
+- **함수들**:
   ```python
-  class PTYWrapper:
-      def __init__(self, shell: str = "/bin/bash")
-      def __enter__(self) -> 'PTYWrapper'
-      def __exit__(self, exc_type, exc_val, exc_tb) -> None
-      def spawn(self) -> None
-      def write(self, data: str) -> int
-      def read(self, size: int = 1024) -> str
-      def is_alive(self) -> bool
-      def terminate(self) -> None
-      def get_exit_code(self) -> Optional[int]
-      def _cleanup_resources(self) -> None
-
-      # blessed 통합 메서드
-      def get_terminal(self) -> Terminal
-      def enter_fullscreen(self) -> BlessedTerminalControl
-      def move_cursor(self, x: int, y: int) -> None
-      def get_terminal_size(self) -> Tuple[int, int]
-      def detect_capabilities(self) -> Dict[str, bool]
+  # 순수 함수들
+  def create_pty_config(shell: str, env: dict, cwd: str) -> PTYConfig
+  def validate_pty_config(config: PTYConfig) -> Result[PTYConfig, ValidationError]
+  def decode_pty_data(data: bytes) -> Result[str, DecodeError]
+  def encode_pty_data(text: str) -> Result[bytes, EncodeError]
+  def update_process_state(state: ProcessState, event: ProcessEvent) -> ProcessState
+  def analyze_terminal_capabilities(terminal_info: dict) -> TerminalCapabilities
+  def generate_ansi_sequence(command: TerminalCommand) -> str
+  def validate_process_state(state: ProcessState) -> Result[ProcessState, ValidationError]
   ```
 
-### 2. 프로세스 관리 유틸리티
-- **위치**: src/term2ai/utils/process.py
-- **설명**: 프로세스 관리를 위한 유틸리티 함수
-- **함수**:
-  - `find_shell()`: 사용 가능한 셸 자동 감지
-  - `validate_shell()`: 셸 실행 파일 검증
-  - `get_shell_info()`: 셸 버전 및 정보 획득
+### 2. IOEffect 시스템
+- **위치**: src/term2ai/effects/pty_effects.py
+- **설명**: PTY 작업을 위한 Effect 정의
+- **Effects**:
+  ```python
+  # Effect 정의들
+  def spawn_pty_effect(config: PTYConfig) -> IOEffect[Result[PTYHandle, PTYError]]
+  def read_pty_effect(handle: PTYHandle, size: int) -> IOEffect[Result[bytes, IOError]]
+  def write_pty_effect(handle: PTYHandle, data: str) -> IOEffect[Result[int, IOError]]
+  def terminate_pty_effect(handle: PTYHandle) -> IOEffect[Result[Unit, TerminationError]]
+  def init_terminal_effect(config: TerminalConfig) -> IOEffect[Result[Terminal, TerminalError]]
+  ```
 
-### 3. 테스트 스위트
-- **위치**: tests/test_checkpoint_01_basic_pty/
-- **설명**: PTY 래퍼를 위한 포괄적인 테스트
+### 3. 이벤트 소싱 시스템
+- **위치**: src/term2ai/events/pty_events.py
+- **설명**: PTY 관련 이벤트 정의 및 폴드 함수
+- **구성요소**:
+  ```python
+  # 이벤트 타입들
+  @dataclass(frozen=True)
+  class ProcessSpawned(ProcessEvent): ...
+  class ProcessTerminated(ProcessEvent): ...
+  class DataReceived(ProcessEvent): ...
+
+  # 상태 재구성 함수
+  def fold_process_events(events: tuple[ProcessEvent, ...]) -> ProcessState
+  ```
+
+### 4. Property-Based 테스트 스위트
+- **위치**: tests/test_checkpoint_01_functional_pty/
+- **설명**: 함수형 PTY 시스템을 위한 포괄적인 테스트
 - **파일**:
-  - `test_pty_wrapper.py`: PTYWrapper 단위 테스트
-  - `test_process_management.py`: 프로세스 라이프사이클 테스트
-  - `test_integration.py`: 통합 테스트
-  - `conftest.py`: 테스트 픽스처 및 구성
+  - `test_pure_functions.py`: 순수 함수 Property-based 테스트
+  - `test_monad_laws.py`: 모나드 법칙 검증 테스트
+  - `test_effect_composition.py`: Effect 합성 테스트
+  - `test_event_sourcing.py`: 이벤트 소싱 테스트
+  - `conftest.py`: 함수형 테스트 픽스처
 
-### 4. blessed 터미널 제어 클래스
-- **위치**: src/term2ai/core/blessed_control.py
-- **설명**: blessed 기반 터미널 제어 구현
-- **클래스**:
-  - `BlessedTerminalControl`: 고급 터미널 제어
-  - `TerminalCapabilities`: 터미널 기능 감지
-  - `CursorController`: 커서 제어 및 관리
-
-### 5. 타입 정의
-- **위치**: src/term2ai/models/pty.py
-- **설명**: PTY 작업을 위한 Pydantic 모델
+### 5. 불변 타입 정의
+- **위치**: src/term2ai/models/functional_pty.py
+- **설명**: PTY 작업을 위한 불변 Pydantic 모델
 - **모델**:
-  - `PTYConfig`: PTY 래퍼 구성
-  - `ProcessState`: 프로세스 상태 추적
-  - `IOOperation`: 입출력 작업 레코드
-  - `TerminalInfo`: blessed 터미널 정보
-  - `TerminalCapabilities`: 터미널 기능 정의
+  ```python
+  @dataclass(frozen=True)
+  class PTYConfig: ...
+  class ProcessState: ...
+  class TerminalCapabilities: ...
+  class ProcessEvent: ...
+  ```
 
-## 구현 참고사항
+## 함수형 구현 참고사항
 
-### 핵심 의존성
-- **ptyprocess**: Unix/Linux 전용 PTY 처리 라이브러리
-- **blessed**: 고급 터미널 제어 및 기능 감지
-- **pexpect**: Unix 계열 고급 PTY 작업 최적화
-- **typing**: Unix 네이티브 성능을 위한 타입 힌트
+### 함수형 핵심 의존성
+- **ptyprocess**: Unix/Linux 전용 PTY 처리 (IOEffect로 래핑)
+- **blessed**: 터미널 제어 (순수 함수로 래핑)
+- **hypothesis**: Property-based testing 프레임워크
+- **typing**: 모나드 타입 힌트 지원
+- **pydantic**: 불변 데이터 모델 (`frozen=True`)
 
-### 주요 설계 결정
-1. **블로킹 vs 논블로킹 I/O**: 두 모드 모두 지원
-2. **버퍼 관리**: 구성 가능한 버퍼 크기
-3. **오류 복구**: 오류 시 우아한 성능 저하
-4. **리소스 정리**: Context manager를 통한 자동 정리
-5. **RAII 패턴**: 리소스 획득과 동시에 해제 보장
-6. **예외 안전성**: 예외 발생 시에도 리소스 누수 방지
+### 함수형 설계 결정
+1. **순수성 우선**: 모든 비즈니스 로직을 순수 함수로 구현
+2. **Effect 캡슐화**: 모든 I/O 작업을 IOEffect 모나드로 래핑
+3. **불변성**: 모든 데이터 구조를 `frozen=True`로 설정
+4. **타입 안전성**: Result/Maybe 모나드로 에러/null 처리
+5. **이벤트 소싱**: 상태 변경을 불변 이벤트로 기록
+6. **합성성**: 작은 함수들의 합성으로 복잡한 로직 구현
 
-### 테스트 전략
-- 단위 테스트를 위한 PTY 작업 모킹
-- 통합 테스트를 위한 실제 PTY 사용
-- 다양한 셸에 대한 매개변수화된 테스트
-- I/O 작업에 대한 성능 테스트
-- Context manager 동작에 대한 테스트
-- 예외 안전성 및 리소스 정리 테스트
+### 함수형 테스트 전략
+- **Property-based testing**: hypothesis로 순수 함수의 속성 검증
+- **모나드 법칙 테스트**: 수학적 모나드 법칙 준수 확인
+- **Effect 모킹**: IOEffect를 모킹하여 부작용 없이 테스트
+- **이벤트 재생**: 이벤트 소싱으로 상태 일관성 검증
+- **불변성 검증**: 모든 작업에서 원본 데이터 보존 확인
+- **합성 테스트**: 함수 합성의 결합법칙 및 항등원 테스트
 
-## 승인 기준
-- [ ] 모든 단위 테스트 통과 (100% 성공률)
-- [ ] 실제 PTY로 통합 테스트 통과
-- [ ] 핵심 기능에 대해 ≥90% 코드 커버리지
-- [ ] mypy로 타입 검사 통과
-- [ ] ruff로 린팅 통과
-- [ ] 문서 완성 및 정확성
-- [ ] Context manager 구현 및 테스트 완료
-- [ ] 예외 안전성 테스트 통과
-- [ ] 리소스 누수 방지 검증
+## 함수형 승인 기준
+- [ ] 모든 순수 함수에 Property-based testing 적용 (≥95% 속성 커버리지)
+- [ ] 모나드 법칙 테스트 통과 (Left Identity, Right Identity, Associativity)
+- [ ] Effect 시스템 모킹 테스트 완료
+- [ ] 이벤트 소싱 일관성 테스트 통과
+- [ ] 모든 비즈니스 로직이 순수 함수로 구현
+- [ ] 부작용이 IOEffect로 완전히 캡슐화
+- [ ] 불변 데이터 구조만 사용 (frozen=True 검증)
+- [ ] Result/Maybe 모나드로 에러/null 처리
+- [ ] mypy 타입 검사 통과 (모나드 타입 포함)
 
 ## 다음 체크포인트
-기본 PTY 래퍼가 구현되고 테스트되면 [체크포인트 2: I/O 처리](02_io_handling.md)로 진행합니다.
+순수 함수 기반 PTY 처리가 구현되고 테스트되면 [체크포인트 2: 모나드 기반 I/O 시스템](02_io_handling.md)로 진행합니다.

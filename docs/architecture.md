@@ -1,208 +1,282 @@
-# 아키텍처 개요
+# 함수형 아키텍처 개요
 
 ## 시스템 아키텍처
 
-term2ai 터미널 래퍼는 기존 터미널 애플리케이션과의 호환성을 유지하면서 터미널 I/O 작업에 대한 완전한 제어를 제공하는 모듈식, 확장 가능한 시스템으로 설계되었습니다.
+term2ai 터미널 래퍼는 **함수형 프로그래밍 패러다임**을 기반으로 설계된 순수하고 합성 가능한 시스템입니다. 모든 비즈니스 로직은 순수 함수로 구현되며, 부작용은 Effect 시스템을 통해 명시적으로 관리됩니다. 기존 터미널 애플리케이션과의 호환성을 유지하면서도 예측 가능하고 테스트하기 쉬운 코드베이스를 제공합니다.
 
-### 핵심 구성요소
+### 함수형 아키텍처 레이어
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│               사용자 인터페이스 계층 (blessed)                   │
+│            Application Layer (합성된 Effect들)                │
 ├─────────────────────────────────────────────────────────────┤
-│  전역 입력 하이재킹 (keyboard + pynput)  │  플러그인 시스템     │
+│  Event Streams    │  Function Pipelines │  UI Renderers     │
+│  (비동기 스트림)     │  (순수 함수 합성)      │  (블레스드 제어)     │
 ├─────────────────────────────────────────────────────────────┤
-│  세션 관리자  │  AI 통합      │  네트워크 계층     │
+│  Business Logic Layer (순수 함수들)                           │
+│  • ANSI 파싱      • 데이터 변환      • 입력 검증             │
+│  • 출력 포맷팅    • 패턴 분석       • 상태 변환              │
 ├─────────────────────────────────────────────────────────────┤
-│  ANSI 파서   │  시그널 관리자  │  필터 시스템      │
+│  Effect Management Layer (모나드 시스템)                      │
+│  • IOEffect      • Result          • Maybe                 │
+│  • State         • Reader          • Writer                │
 ├─────────────────────────────────────────────────────────────┤
-│  터미널 상태  │  I/O 관리자    │  버퍼 관리자      │
+│  Event Sourcing Layer (이벤트 저장소)                        │
+│  • 이벤트 스트림  • 상태 재구성     • 시간 여행 디버깅         │
 ├─────────────────────────────────────────────────────────────┤
-│              PTY 래퍼 코어 (ptyprocess + blessed)             │
+│  System Interface Layer (Unix I/O Effects)                │
+│  • PTY Effects   • 파일 Effects    • 네트워크 Effects       │
 ├─────────────────────────────────────────────────────────────┤
 │                   운영 체제 (Unix)                            │
 └─────────────────────────────────────────────────────────────┘
 ```
 
-### 하이재킹 아키텍처
+### 함수형 스트림 기반 하이재킹
 
-term2ai는 **다층 하이재킹 아키텍처**를 통해 터미널 I/O의 완전한 제어를 달성합니다:
+term2ai는 **함수형 스트림 처리**를 통해 터미널 I/O의 완전한 제어를 달성합니다:
 
 ```
-Level 3: GUI 터미널 제어 (blessed)
-         ├─ 전체 화면 모드
-         ├─ 고급 커서 제어
-         ├─ 터미널 기능 감지
-         └─ ANSI 시퀀스 최적화
-         ↓
-Level 2: 전역 입력 하이재킹 (keyboard + pynput)
-         ├─ 시스템 레벨 키보드 캡처
-         ├─ 마우스 이벤트 모니터링
-         ├─ 글로벌 단축키 처리
-         └─ 백그라운드 입력 감시
-         ↓
-Level 1: PTY 기반 하이재킹 (ptyprocess + pexpect)
-         ├─ 터미널 세션 완전 제어
-         ├─ 입출력 스트림 인터셉션
-         ├─ 프로세스 생명주기 관리
-         └─ ANSI 이스케이프 시퀀스 캡처
-         ↓
-Level 0: 운영 체제 (Unix)
-         ├─ PTY 디바이스 제어
-         ├─ 시그널 처리
-         ├─ 파일 디스크립터 관리
-         └─ 프로세스 그룹 제어
+Event Streams (비동기 스트림):
+┌─────────────────────────────────────────────────────┐
+│ KeyboardStream    MouseStream    PTYStream          │
+│ (keyboard lib) →  (pynput) →     (ptyprocess) →     │
+└─────────────────┬───────────────────────────────────┘
+                  ↓
+Event Transformation Pipeline (순수 함수 체인):
+┌─────────────────────────────────────────────────────┐
+│ filter_events → parse_data → validate_input →       │
+│ transform_sequences → analyze_patterns              │
+└─────────────────┬───────────────────────────────────┘
+                  ↓
+Effect Composition (모나드 체인):
+┌─────────────────────────────────────────────────────┐
+│ IOEffect[Event] → Result[ProcessedEvent, Error] →  │
+│ Maybe[Action] → State[TerminalState, Action]       │
+└─────────────────┬───────────────────────────────────┘
+                  ↓
+Event Sourcing (불변 이벤트 저장):
+┌─────────────────────────────────────────────────────┐
+│ append_event → fold_to_state → emit_side_effects    │
+└─────────────────────────────────────────────────────┘
 ```
 
-### 계층 설명
+### 함수형 레이어 설명
 
-#### PTY 래퍼 코어 (Level 1)
-- **목적**: 기본적인 의사 터미널 작업 및 blessed 통합
-- **구성요소**: 프로세스 생성, 기본 I/O, 리소스 관리, 터미널 제어
-- **의존성**: ptyprocess, pexpect, blessed
-- **하이재킹 기능**: 터미널 세션 내부 완전 제어
+#### Application Layer (애플리케이션 계층)
+- **목적**: 최종 사용자 기능의 함수형 합성
+- **구성요소**: Effect 합성, 스트림 처리, UI 렌더링
+- **특징**: 모든 기능이 순수 함수와 Effect의 합성으로 구현
+- **예시**: `terminal_session = pipe(create_pty_stream, filter_ansi, render_ui)`
 
-#### 전역 입력 하이재킹 계층 (Level 2)
-- **목적**: 시스템 레벨 입력 캡처 및 모니터링
-- **구성요소**: 키보드 Hook, 마우스 이벤트, 글로벌 단축키, 백그라운드 감시
-- **의존성**: keyboard, pynput
-- **하이재킹 기능**: PTY 외부 모든 입력 이벤트 캡처
+#### Business Logic Layer (비즈니스 로직 계층)
+- **목적**: 도메인 로직의 순수 함수 구현
+- **구성요소**:
+  - `parse_ansi_sequence: str -> ANSISequence`
+  - `transform_input: KeyEvent -> Maybe[Action]`
+  - `validate_terminal_state: TerminalState -> Result[TerminalState, ValidationError]`
+- **특징**: 완전히 순수하고 테스트 가능한 함수들
+- **부작용**: 없음 (순수 함수만)
 
-#### 터미널 상태 및 I/O 관리
-- **목적**: 고급 I/O 처리 및 터미널 상태 추적
-- **구성요소**: 비동기 I/O, 버퍼링, 터미널 모드, 커서 추적
-- **의존성**: asyncio, termios, blessed
-- **하이재킹 기능**: 모든 I/O 스트림 인터셉션 및 분석
+#### Effect Management Layer (Effect 관리 계층)
+- **목적**: 부작용의 명시적 관리 및 합성
+- **구성요소**:
+  - `IOEffect[T]`: I/O 작업 캡슐화
+  - `Result[T, E]`: 성공/실패 타입 안전 처리
+  - `Maybe[T]`: null 안전성
+  - `State[S, A]`: 상태 변경 함수형 관리
+- **특징**: 모나드 법칙을 만족하는 타입 안전한 합성
+- **예시**: `read_pty_effect.bind(parse_data).bind(update_state)`
 
-#### 처리 계층
-- **목적**: 데이터 처리 및 터미널 제어
-- **구성요소**: ANSI 파싱, 시그널 처리, 데이터 필터링
-- **의존성**: blessed (ANSI 최적화), 핵심 터미널 기능
-- **하이재킹 기능**: 모든 ANSI 이스케이프 시퀀스 가로채기
+#### Event Sourcing Layer (이벤트 소싱 계층)
+- **목적**: 모든 상태 변경을 이벤트로 기록하고 재생
+- **구성요소**:
+  - `Event`: 불변 이벤트 타입
+  - `EventStore`: 이벤트 컬렉션
+  - `fold_events: [Event] -> ApplicationState`
+- **특징**: 상태는 이벤트의 fold 결과로만 존재
+- **장점**: 시간 여행 디버깅, 완벽한 감사 추적
 
-#### 기능 계층
-- **목적**: 고급 기능 및 통합
-- **구성요소**: 세션 기록, AI 통합, 네트워크 기능
-- **의존성**: 처리 계층 구성요소
-- **하이재킹 기능**: 캡처된 데이터의 실시간 분석 및 활용
+#### System Interface Layer (시스템 인터페이스 계층)
+- **목적**: Unix 시스템 호출을 Effect로 래핑
+- **구성요소**:
+  - `pty_read_effect: PTYHandle -> IOEffect[bytes]`
+  - `file_write_effect: FilePath -> Content -> IOEffect[Unit]`
+  - `signal_handler_effect: Signal -> IOEffect[Unit]`
+- **특징**: 모든 부작용이 명시적으로 Effect 타입에 표현됨
+- **Unix 최적화**: epoll/kqueue 기반 고성능 비동기 I/O
 
-#### 플러그인 시스템
-- **목적**: 확장성 및 사용자 정의
-- **구성요소**: 플러그인 로딩, API, 생명주기 관리
-- **의존성**: 모든 하위 계층
-- **하이재킹 기능**: 하이재킹된 데이터에 대한 사용자 정의 처리
+## 함수형 데이터 흐름
 
-#### 사용자 인터페이스 계층 (Level 3)
-- **목적**: 고급 터미널 제어 및 사용자 상호작용
-- **구성요소**: 전체 화면 모드, 고급 커서 제어, CLI, 설정, 모니터링
-- **의존성**: blessed, rich, typer
-- **하이재킹 기능**: 터미널 화면 완전 제어
-
-## 데이터 흐름
-
-### 하이재킹 입력 흐름
+### 입력 이벤트 스트림 처리
 ```
-물리적 키보드/마우스 → 전역 입력 하이재킹 (keyboard/pynput) →
-입력 분석 & 로깅 → UI 계층 (blessed) → 플러그인 필터 →
-세션 기록 → ANSI 처리 → 터미널 상태 → PTY 코어 → 셸 프로세스
-```
-
-### 하이재킹 출력 흐름
-```
-셸 프로세스 → PTY 코어 → 버퍼 관리 → ANSI 파싱 (blessed 최적화) →
-출력 하이재킹 & 분석 → 필터 시스템 → 세션 기록 →
-플러그인 처리 → UI 표시 (blessed 제어)
-```
-
-### 완전 하이재킹 루프
-```
-┌─── 전역 입력 모니터링 (Level 2) ───┐
-│                                    │
-▼                                    │
-물리적 입력 → 하이재킹 캡처 → 분석   │
-│                                    │
-▼                                    │
-PTY 세션 (Level 1) → 출력 캡처 → 분석
-│                                    │
-▼                                    │
-터미널 화면 (Level 3) → 화면 제어 ───┘
+KeyboardEvent | MouseEvent | PTYEvent
+              ↓
+        async_stream_merge
+              ↓
+   filter_relevant_events: Event -> Maybe[Event]
+              ↓
+   parse_event_data: Event -> Result[ParsedEvent, ParseError]
+              ↓
+   validate_event: ParsedEvent -> Result[ValidEvent, ValidationError]
+              ↓
+   transform_to_action: ValidEvent -> Maybe[Action]
+              ↓
+   append_to_event_store: Action -> IOEffect[EventStore]
 ```
 
-## 주요 설계 원칙
+### 상태 재구성 파이프라인
+```
+EventStore
+    ↓
+fold_events: (State, Event) -> State
+    ↓
+current_terminal_state: TerminalState
+    ↓
+derive_ui_model: TerminalState -> UIModel
+    ↓
+render_ui: UIModel -> IOEffect[Unit]
+```
 
-### 1. 모듈성
-- 각 구성요소는 명확하고 잘 정의된 책임을 가짐
-- 구성요소는 정의된 인터페이스를 통해 통신
-- 개별 구성요소를 쉽게 테스트, 유지보수, 확장
+### Effect 합성 체인
+```
+read_pty_effect: IOEffect[bytes]
+    ↓ (bind)
+decode_utf8: bytes -> Result[str, UnicodeError]
+    ↓ (bind)
+parse_ansi: str -> Result[ANSISequence[], ParseError]
+    ↓ (bind)
+update_terminal_state: ANSISequence[] -> State[TerminalState, Unit]
+    ↓ (bind)
+emit_ui_update: TerminalState -> IOEffect[Unit]
+```
 
-### 2. 확장성
-- 플러그인 시스템은 핵심 변경 없이 사용자 정의 기능 허용
-- 필터 아키텍처는 데이터 처리 사용자 정의 가능
-- 설정 시스템은 다양한 배포 시나리오 지원
+## 함수형 설계 원칙
 
-### 3. 성능
-- 반응형 작업을 위한 비동기 I/O
-- 효율적인 버퍼링 및 메모리 관리
-- 고처리량 시나리오를 위한 최적화된 파싱 알고리즘
+### 1. 순수성 (Purity)
+- 모든 비즈니스 로직은 순수 함수로 구현
+- 동일한 입력에 대해 항상 동일한 출력 보장
+- 부작용 없이 참조 투명성 유지
+- 테스트와 추론이 쉬운 코드
 
-### 4. 호환성
-- 기존 터미널 애플리케이션과의 호환성 유지
-- 다양한 터미널 유형 및 기능 지원
-- 지원되지 않는 기능에 대한 우아한 성능 저하
+### 2. 불변성 (Immutability)
+- 모든 데이터 구조는 불변으로 설계
+- 상태 변경은 새로운 인스턴스 생성으로 처리
+- 동시성 안전성 자동 보장
+- 시간 여행 디버깅 가능
+
+### 3. 합성성 (Composability)
+- 작은 함수들의 합성으로 복잡한 기능 구현
+- 파이프라인과 체이닝을 통한 데이터 변환
+- 모나드를 통한 안전한 연산 합성
+- 재사용 가능한 함수 라이브러리
+
+### 4. 명시적 부작용 관리
+- Effect 시스템을 통한 부작용 캡슐화
+- I/O 작업을 순수 함수와 분리
+- 모나드를 통한 에러 처리
+- 타입 시스템으로 부작용 추적
 
 ### 5. 타입 안전성
-- 코드베이스 전체에 포괄적인 타입 힌트
-- 데이터 검증 및 직렬화를 위한 Pydantic 모델
-- mypy를 사용한 정적 타입 검사
+- Result와 Maybe 타입으로 null/error 안전성
+- 컴파일 타임 에러 감지
+- 모나드 법칙을 통한 정확성 보장
+- 타입 기반 문서화
 
-### 6. 리소스 안전성 (RAII 패턴)
-- Context manager를 통한 자동 리소스 관리
-- 예외 발생 시에도 보장되는 리소스 정리
-- RAII (Resource Acquisition Is Initialization) 원칙 준수
-- 메모리 누수 및 파일 디스크립터 누수 방지
+### 6. 이벤트 소싱
+- 모든 상태 변경을 이벤트로 기록
+- 상태는 이벤트 스트림의 fold 결과
+- 완벽한 감사 추적
+- 시스템 상태의 재현 가능성
 
-## 구성요소 상호작용
+## 함수형 구성요소 상호작용
 
-### PTY 래퍼 코어
-- 셸 프로세스 생성 및 관리
-- 기본 읽기/쓰기 작업 제공
-- 프로세스 생명주기 및 정리 처리
-- Context manager를 통한 자동 리소스 정리
+### 순수 함수 모듈들
+```python
+# 데이터 변환 순수 함수들
+parse_ansi_sequence: str -> ANSISequence
+decode_keyboard_event: RawInput -> KeyboardEvent
+validate_terminal_state: TerminalState -> Result[TerminalState, ValidationError]
+format_output: Content -> Style -> StyledOutput
+analyze_input_pattern: [Event] -> PatternAnalysis
+```
 
-### I/O 관리자
-- **aiofiles 기반 비동기 파일 I/O**: 세션 로깅, 설정 파일 처리
-- **uvloop 성능 최적화**: Unix 계열에서 2-4배 성능 향상 (조건부 활성화)
-- **입출력 버퍼 관리**: 8KB 기본 버퍼, 적응적 크기 조정
-- **I/O 멀티플렉싱**: select/epoll을 통한 동시 스트림 처리
-- **aiosignal 통합**: 비동기 시그널 처리와 I/O 작업 조정
-- **Async context manager**: 비동기 리소스 자동 관리 (__aenter__/__aexit__)
-- **Unix 전용 최적화**: epoll/kqueue 기반 최적 I/O 성능
+### Effect 기반 I/O 시스템
+```python
+# 모든 I/O가 Effect로 래핑됨
+pty_read_effect: PTYHandle -> IOEffect[bytes]
+file_write_effect: Path -> Content -> IOEffect[Unit]
+keyboard_listen_effect: () -> IOEffect[AsyncStream[KeyEvent]]
+terminal_render_effect: UIModel -> IOEffect[Unit]
 
-### 터미널 상태 관리자
-- 터미널 모드 및 기능 추적
-- 창 크기 및 커서 위치 관리
-- 터미널 상태 변경 처리
+# Effect 합성을 통한 복잡한 I/O 작업
+session_logging_effect =
+    read_pty_effect
+    .bind(parse_ansi)
+    .bind(filter_sensitive_data)
+    .bind(append_to_log_file)
+```
 
-### ANSI 파서
-- ANSI 이스케이프 시퀀스 파싱
-- 시퀀스를 구조화된 데이터로 변환
-- 색상 코드 및 제어 명령 처리
+### 이벤트 스트림 처리
+```python
+# 비동기 스트림들의 합성
+keyboard_stream: AsyncStream[KeyboardEvent]
+mouse_stream: AsyncStream[MouseEvent]
+pty_stream: AsyncStream[PTYEvent]
 
-### 시그널 관리자
-- 시스템 시그널 가로채기 및 처리
-- 자식 프로세스로 시그널 전파
-- 시그널 안전 작업 관리
+# 스트림 변환 파이프라인
+unified_stream = merge_streams([keyboard_stream, mouse_stream, pty_stream])
+    .map(normalize_event)
+    .filter(is_relevant_event)
+    .scan(fold_to_state, initial_state)
+```
 
-### 세션 관리자
-- 터미널 세션 기록
-- 세션 재생 기능 제공
-- 세션 지속성 관리
-- Context manager를 통한 세션 생명주기 자동 관리
+### 상태 관리 (이벤트 소싱)
+```python
+# 불변 이벤트 저장소
+@dataclass(frozen=True)
+class EventStore:
+    events: tuple[Event, ...]
 
-### 플러그인 시스템
-- 플러그인을 동적으로 로드 및 관리
-- 플러그인 개발을 위한 API 제공
-- 플러그인 생명주기 및 의존성 처리
+# 상태 재구성 함수
+def fold_events(events: tuple[Event, ...]) -> ApplicationState:
+    return functools.reduce(apply_event, events, ApplicationState.initial())
+
+# 상태 업데이트 (새 이벤트 추가)
+def append_event(store: EventStore, event: Event) -> EventStore:
+    return EventStore(events=store.events + (event,))
+```
+
+### 모나드 기반 에러 처리
+```python
+# 연쇄적 연산에서 안전한 에러 처리
+def safe_terminal_operation(input_data: str) -> Result[TerminalState, Error]:
+    return (
+        Result.ok(input_data)
+        .bind(validate_input)
+        .bind(parse_commands)
+        .bind(execute_commands)
+        .bind(update_terminal_state)
+    )
+
+# Maybe를 통한 null 안전성
+def find_active_session(session_id: str) -> Maybe[Session]:
+    session = session_store.get(session_id)
+    return Some(session) if session else Nothing()
+```
+
+### 플러그인 시스템 (함수형 확장)
+```python
+# 플러그인은 순수 함수로 정의
+PluginFunction = Callable[[Event], Maybe[Event]]
+
+# 플러그인 합성
+def apply_plugins(plugins: list[PluginFunction], event: Event) -> Event:
+    return functools.reduce(
+        lambda e, plugin: plugin(e).unwrap_or(e),
+        plugins,
+        event
+    )
+```
 
 ## 설정 아키텍처
 
@@ -279,20 +353,35 @@ PTY 세션 (Level 1) → 출력 캡처 → 분석
 - **epoll 활용**: Linux/Unix 최적화된 다중 스트림 처리
 - **Context manager 최적화**: RAII 패턴으로 리소스 관리 오버헤드 최소화
 
-## 테스트 전략
+## 함수형 테스트 전략
 
 ### 테스트 범주
-1. **단위 테스트**: 개별 구성요소 테스트
-2. **통합 테스트**: 구성요소 상호작용 테스트
-3. **엔드투엔드 테스트**: 전체 워크플로 테스트
-4. **성능 테스트**: 성능 및 확장성 테스트
-5. **호환성 테스트**: 터미널 애플리케이션 호환성
+1. **순수 함수 테스트**: Property-based testing으로 모든 순수 함수 검증
+2. **모나드 법칙 테스트**: 수학적 모나드 법칙 준수 검증
+3. **Effect 테스트**: I/O Effect를 모킹하여 부작용 없이 테스트
+4. **이벤트 소싱 테스트**: 이벤트 재생을 통한 상태 일관성 검증
+5. **스트림 테스트**: 비동기 스트림 처리 검증
 
-### 테스트 인프라
-- pytest를 사용한 자동화된 테스트
-- 테스트 자동화를 통한 지속적 통합
-- 성능 벤치마킹 및 회귀 감지
-- 플랫폼 간 호환성 테스트
+### 함수형 테스트 기법
+```python
+# Property-based testing 예시
+@given(st.text())
+def test_ansi_parsing_inverse(text: str):
+    parsed = parse_ansi_sequence(text)
+    reconstructed = reconstruct_ansi_sequence(parsed)
+    assert reconstructed == text
+
+# 모나드 법칙 테스트
+def test_result_monad_laws():
+    # Left Identity, Right Identity, Associativity 검증
+    pass
+
+# Effect 모킹
+def test_pty_operations():
+    mock_effect = IOEffect(lambda: b"test_data")
+    result = pty_read_pipeline(mock_effect)
+    assert result.is_ok()
+```
 
 ## 지원 플랫폼
 

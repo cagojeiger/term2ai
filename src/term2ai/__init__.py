@@ -1,2 +1,7 @@
-def hello() -> str:
-    return "Hello from term2ai!"
+# term2ai - 함수형 프로그래밍 기반 터미널 래퍼
+"""
+순수 함수, 모나드 시스템, Effect 관리를 통한 예측 가능하고
+테스트 가능한 터미널 래퍼 라이브러리
+"""
+
+__version__ = "0.1.0"

@@ -1,180 +1,271 @@
-# API 설계 문서
+# 함수형 API 설계 문서
 
 ## 개요
-term2ai의 API는 모듈화된 구조로 설계되어 각 기능별로 명확한 인터페이스를 제공합니다. 이 문서는 각 모듈의 API 설계 원칙과 구체적인 인터페이스를 설명합니다.
+term2ai의 API는 **함수형 프로그래밍 패러다임**을 기반으로 설계되어 순수 함수, 모나드, Effect 시스템을 통한 명확하고 합성 가능한 인터페이스를 제공합니다. 이 문서는 함수형 API 설계 원칙과 구체적인 함수 시그니처를 설명합니다.
 
-## API 설계 원칙
+## 함수형 API 설계 원칙
 
-### 1. 타입 안전성
-- 모든 API는 타입 힌트를 포함
-- Pydantic 모델을 통한 데이터 검증
-- mypy를 통한 정적 타입 검사
+### 1. 순수성 (Purity)
+- 모든 비즈니스 로직은 순수 함수로 구현
+- 동일한 입력에 대해 항상 동일한 출력 보장
+- 부작용은 Effect 시스템을 통해 명시적으로 분리
 
-### 2. 직관적인 인터페이스
-- 명확하고 일관된 메서드 명명
-- 예측 가능한 매개변수 구조
-- 표준 Python 관례 따름
+### 2. 타입 안전성 및 모나드 활용
+- Result 모나드로 에러 처리
+- Maybe 모나드로 null 안전성
+- IOEffect 모나드로 부작용 관리
+- 컴파일 타임 에러 감지
 
-### 3. 확장성
-- 플러그인 시스템을 통한 기능 확장
-- 훅과 콜백을 통한 커스터마이징
-- 설정 가능한 모든 동작
+### 3. 합성성 (Composability)
+- 작은 함수들의 합성으로 복잡한 기능 구현
+- 파이프라인과 체이닝을 통한 데이터 변환
+- 모나드 법칙을 통한 안전한 합성
 
-### 4. 오류 처리
-- 명확한 예외 계층 구조
-- 구체적인 오류 메시지
-- 복구 가능한 오류와 불가능한 오류 구분
+### 4. 불변성 (Immutability)
+- 모든 데이터 구조는 불변
+- 상태 변경은 새로운 인스턴스 생성
+- 동시성 안전성 자동 보장
 
-## 핵심 API 모듈
+### 5. 명시적 부작용 관리
+- I/O 작업을 IOEffect로 캡슐화
+- 순수 함수와 부작용 명확히 분리
+- Effect 합성을 통한 복잡한 I/O 작업
 
-### 1. PTY 래퍼 코어 API
+## 함수형 API 모듈
 
-#### PTYWrapper 클래스
+### 1. PTY 처리 순수 함수 API
+
+#### PTY 설정 및 생성 함수
 ```python
-class PTYWrapper:
-    """의사 터미널 래퍼의 핵심 클래스"""
+# 순수 함수: PTY 설정 생성
+def create_pty_config(
+    shell: str = "/bin/bash",
+    env: dict[str, str] | None = None,
+    working_dir: str | None = None
+) -> PTYConfig:
+    """
+    PTY 설정을 생성하는 순수 함수
 
-    def __init__(self, shell: str = "/bin/bash", **kwargs) -> None:
-        """
-        PTY 래퍼 초기화
+    Args:
+        shell: 실행할 쉘 경로
+        env: 환경 변수 딕셔너리
+        working_dir: 작업 디렉토리
 
-        Args:
-            shell: 실행할 쉘 경로
-            **kwargs: 추가 설정 옵션
-        """
+    Returns:
+        불변 PTY 설정 객체
+    """
 
-    def __enter__(self) -> 'PTYWrapper':
-        """
-        Context manager 진입점
+# Effect: PTY 프로세스 생성
+def spawn_pty_effect(config: PTYConfig) -> IOEffect[Result[PTYHandle, PTYError]]:
+    """
+    PTY 프로세스를 생성하는 Effect
 
-        Returns:
-            자기 자신 (PTYWrapper 인스턴스)
-        """
-        self.spawn()
-        return self
+    Args:
+        config: PTY 설정
 
-    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
-        """
-        Context manager 종료점, 리소스 자동 정리
+    Returns:
+        PTY 핸들을 반환하는 Effect (성공/실패 포함)
+    """
 
-        Args:
-            exc_type: 예외 타입
-            exc_val: 예외 값
-            exc_tb: 예외 트레이스백
-        """
-        self.terminate()
-        self._cleanup_resources()
+# 순수 함수: PTY 상태 검증
+def validate_pty_handle(handle: PTYHandle) -> Result[PTYHandle, ValidationError]:
+    """
+    PTY 핸들의 유효성을 검증하는 순수 함수
 
-    def spawn(self) -> None:
-        """프로세스를 의사 터미널에서 실행"""
+    Args:
+        handle: 검증할 PTY 핸들
 
-    def write(self, data: str) -> int:
-        """
-        PTY에 데이터 쓰기
-
-        Args:
-            data: 전송할 문자열
-
-        Returns:
-            실제로 쓰여진 바이트 수
-        """
-
-    def read(self, size: int = 1024) -> str:
-        """
-        PTY에서 데이터 읽기
-
-        Args:
-            size: 읽을 최대 바이트 수
-
-        Returns:
-            읽은 문자열
-        """
-
-    def is_alive(self) -> bool:
-        """프로세스가 살아있는지 확인"""
-
-    def terminate(self) -> None:
-        """프로세스 종료"""
-
-    def get_exit_code(self) -> Optional[int]:
-        """프로세스 종료 코드 반환"""
-
-    def _cleanup_resources(self) -> None:
-        """내부 리소스 정리 (파일 디스크립터, 버퍼 등)"""
+    Returns:
+        검증된 핸들 또는 에러
+    """
 ```
 
-### 2. 비동기 I/O 관리 API
-
-#### AsyncIOManager 클래스
+#### PTY I/O 함수형 API
 ```python
-class AsyncIOManager:
-    """비동기 I/O 작업 관리자"""
+# Effect: PTY 읽기
+def read_pty_effect(handle: PTYHandle, size: int = 1024) -> IOEffect[Result[bytes, IOError]]:
+    """
+    PTY에서 데이터를 읽는 Effect
 
-    async def __aenter__(self) -> 'AsyncIOManager':
-        """
-        비동기 context manager 진입점
+    Args:
+        handle: PTY 핸들
+        size: 읽을 바이트 수
 
-        Returns:
-            자기 자신 (AsyncIOManager 인스턴스)
-        """
-        await self._initialize_async_resources()
-        return self
+    Returns:
+        읽은 데이터 또는 에러를 포함하는 Effect
+    """
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb) -> None:
-        """
-        비동기 context manager 종료점, 비동기 리소스 정리
+# Effect: PTY 쓰기
+def write_pty_effect(handle: PTYHandle, data: str) -> IOEffect[Result[int, IOError]]:
+    """
+    PTY에 데이터를 쓰는 Effect
 
-        Args:
-            exc_type: 예외 타입
-            exc_val: 예외 값
-            exc_tb: 예외 트레이스백
-        """
-        await self._cleanup_async_resources()
+    Args:
+        handle: PTY 핸들
+        data: 쓸 데이터
 
-    async def read_async(self, fd: int, size: int = 1024) -> bytes:
-        """
-        비동기 읽기 작업
+    Returns:
+        쓰여진 바이트 수 또는 에러를 포함하는 Effect
+    """
 
-        Args:
-            fd: 파일 디스크립터
-            size: 읽을 바이트 수
+# 순수 함수: 데이터 변환
+def decode_pty_data(data: bytes) -> Result[str, DecodeError]:
+    """
+    PTY 바이트 데이터를 문자열로 디코딩하는 순수 함수
 
-        Returns:
-            읽은 데이터
-        """
+    Args:
+        data: 디코딩할 바이트 데이터
 
-    async def write_async(self, fd: int, data: bytes) -> int:
-        """
-        비동기 쓰기 작업
+    Returns:
+        디코딩된 문자열 또는 에러
+    """
 
-        Args:
-            fd: 파일 디스크립터
-            data: 쓸 데이터
+# Effect 합성을 통한 고수준 API
+def read_and_decode_pty(handle: PTYHandle, size: int = 1024) -> IOEffect[Result[str, PTYError]]:
+    """
+    PTY 읽기와 디코딩을 합성한 Effect
 
-        Returns:
-            쓰여진 바이트 수
-        """
+    Returns:
+        디코딩된 문자열 또는 에러
+    """
+    return (read_pty_effect(handle, size)
+            .bind(lambda result:
+                  result.bind(decode_pty_data)
+                  .map_err(PTYError.from_decode_error)))
+```
 
-    async def read_with_timeout(self, fd: int, timeout: float) -> bytes:
-        """
-        타임아웃이 있는 읽기 작업
+### 2. 이벤트 스트림 API
 
-        Args:
-            fd: 파일 디스크립터
-            timeout: 타임아웃 시간(초)
+#### 비동기 스트림 생성 함수
+```python
+# 순수 함수: 스트림 설정 생성
+def create_stream_config(
+    buffer_size: int = 1024,
+    timeout: float | None = None,
+    backpressure_limit: int = 1000
+) -> StreamConfig:
+    """
+    스트림 설정을 생성하는 순수 함수
 
-        Returns:
-            읽은 데이터
+    Args:
+        buffer_size: 버퍼 크기
+        timeout: 타임아웃 (초)
+        backpressure_limit: 백프레셔 한계
 
-        Raises:
-            asyncio.TimeoutError: 타임아웃 발생 시
-        """
+    Returns:
+        불변 스트림 설정 객체
+    """
 
-    async def _initialize_async_resources(self) -> None:
-        """비동기 리소스 초기화"""
+# Effect: 키보드 이벤트 스트림 생성
+def create_keyboard_stream_effect() -> IOEffect[AsyncStream[KeyboardEvent]]:
+    """
+    키보드 이벤트 스트림을 생성하는 Effect
 
-    async def _cleanup_async_resources(self) -> None:
-        """비동기 리소스 정리"""
+    Returns:
+        키보드 이벤트 스트림을 반환하는 Effect
+    """
+
+# Effect: PTY 출력 스트림 생성
+def create_pty_stream_effect(handle: PTYHandle, config: StreamConfig) -> IOEffect[AsyncStream[PTYEvent]]:
+    """
+    PTY 출력 스트림을 생성하는 Effect
+
+    Args:
+        handle: PTY 핸들
+        config: 스트림 설정
+
+    Returns:
+        PTY 이벤트 스트림을 반환하는 Effect
+    """
+```
+
+#### 스트림 변환 순수 함수
+```python
+# 순수 함수: 스트림 병합
+def merge_streams[T](streams: list[AsyncStream[T]]) -> AsyncStream[T]:
+    """
+    여러 스트림을 하나로 병합하는 순수 함수
+
+    Args:
+        streams: 병합할 스트림 리스트
+
+    Returns:
+        병합된 통합 스트림
+    """
+
+# 순수 함수: 스트림 필터링
+def filter_stream[T](
+    stream: AsyncStream[T],
+    predicate: Callable[[T], bool]
+) -> AsyncStream[T]:
+    """
+    스트림을 필터링하는 순수 함수
+
+    Args:
+        stream: 원본 스트림
+        predicate: 필터링 조건
+
+    Returns:
+        필터링된 스트림
+    """
+
+# 순수 함수: 스트림 변환
+def map_stream[T, U](
+    stream: AsyncStream[T],
+    transform: Callable[[T], U]
+) -> AsyncStream[U]:
+    """
+    스트림의 각 요소를 변환하는 순수 함수
+
+    Args:
+        stream: 원본 스트림
+        transform: 변환 함수
+
+    Returns:
+        변환된 스트림
+    """
+
+# 순수 함수: 스트림 폴드 (상태 누적)
+def scan_stream[T, S](
+    stream: AsyncStream[T],
+    initial_state: S,
+    accumulator: Callable[[S, T], S]
+) -> AsyncStream[S]:
+    """
+    스트림을 스캔하여 상태를 누적하는 순수 함수
+
+    Args:
+        stream: 원본 스트림
+        initial_state: 초기 상태
+        accumulator: 상태 누적 함수
+
+    Returns:
+        상태가 누적된 스트림
+    """
+```
+
+#### 스트림 파이프라인 합성
+```python
+# 함수 합성을 통한 복잡한 스트림 처리
+def create_terminal_event_pipeline(
+    pty_handle: PTYHandle
+) -> IOEffect[AsyncStream[ProcessedTerminalEvent]]:
+    """
+    터미널 이벤트 처리 파이프라인을 생성
+
+    Args:
+        pty_handle: PTY 핸들
+
+    Returns:
+        처리된 터미널 이벤트 스트림을 반환하는 Effect
+    """
+    return (create_pty_stream_effect(pty_handle, StreamConfig.default())
+            .map(lambda pty_stream:
+                 pty_stream
+                 .filter(is_relevant_event)
+                 .map(parse_terminal_data)
+                 .map(validate_event)
+                 .scan(ProcessedTerminalEvent.initial(), accumulate_state)))
 ```
 
 ### 3. 터미널 상태 관리 API

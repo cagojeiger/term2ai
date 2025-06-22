@@ -1,66 +1,219 @@
-# 기술적 결정사항 문서
+# 함수형 프로그래밍 기반 기술적 결정사항
 
 ## 개요
-이 문서는 term2ai 프로젝트에서 내린 주요 기술적 결정사항들과 그 근거를 설명합니다. 각 결정의 배경, 고려사항, 그리고 트레이드오프를 상세히 기록합니다.
+이 문서는 term2ai 프로젝트를 **함수형 프로그래밍 패러다임**으로 재설계하면서 내린 주요 기술적 결정사항들과 그 근거를 설명합니다. 순수성, 불변성, 합성성을 중심으로 한 설계 철학과 각 결정의 배경, 고려사항, 트레이드오프를 상세히 기록합니다.
+
+## 함수형 프로그래밍 패러다임 선택
+
+### 0. 프로그래밍 패러다임: 함수형 vs 객체지향
+
+#### 결정: 함수형 프로그래밍 패러다임 채택
+**근거:**
+- **예측 가능성**: 순수 함수는 동일한 입력에 대해 항상 동일한 출력을 보장하여 버그 예측과 추적이 용이
+- **테스트 용이성**: 부작용이 없는 순수 함수는 격리된 테스트가 가능하고 property-based testing 적용 가능
+- **동시성 안전성**: 불변 데이터 구조는 동시성 문제를 원천적으로 방지
+- **합성성**: 작은 함수들의 합성으로 복잡한 로직 구현 가능
+- **부작용 관리**: Effect 시스템으로 I/O와 순수 로직을 명확히 분리
+
+**구현 전략:**
+```python
+# 순수 함수 우선
+def parse_ansi_sequence(data: str) -> ANSISequence:
+    # 부작용 없는 순수 변환
+    pass
+
+# Effect로 부작용 캡슐화
+def read_pty_effect(handle: PTYHandle) -> IOEffect[bytes]:
+    return IOEffect(lambda: os.read(handle.fd, 1024))
+
+# 모나드를 통한 안전한 합성
+result = (read_pty_effect(handle)
+          .bind(decode_utf8)
+          .bind(parse_ansi_sequence)
+          .bind(update_terminal_state))
+```
+
+**트레이드오프:**
+- **학습 곡선**: 함수형 프로그래밍 개념 학습 필요
+- **성능 고려**: 불변 데이터 구조의 메모리 오버헤드
+- **라이브러리 호환성**: 기존 Python 라이브러리들이 주로 OOP 기반
+- **장기적 이익**: 버그 감소, 유지보수성 향상, 테스트 커버리지 증가
 
 ## 핵심 기술 선택
 
-### 1. PTY 라이브러리 선택: ptyprocess vs subprocess
+### 1. PTY 라이브러리 선택: ptyprocess vs subprocess (함수형 관점에서 재검토)
 
-#### 결정: ptyprocess 사용
+#### 결정: ptyprocess 사용 (함수형 래핑)
 **근거:**
 - **의사 터미널 지원**: subprocess는 파이프만 제공하지만, ptyprocess는 실제 터미널처럼 동작하는 의사 터미널 제공
-- **인터랙티브 애플리케이션 호환성**: vim, htop, ssh 등의 프로그램이 정상 동작
-- **ANSI 이스케이프 시퀀스**: 터미널 애플리케이션이 색상과 커서 제어 코드를 올바르게 출력
-- **터미널 크기 감지**: 애플리케이션이 터미널 크기를 인식하고 적절히 반응
+- **Effect 시스템 호환**: PTY 작업을 IOEffect로 래핑하여 순수 함수와 분리 가능
+- **함수형 인터페이스**: 모든 PTY 작업을 순수 함수 + Effect 조합으로 표현
 
-**트레이드오프:**
-- **복잡성 증가**: subprocess보다 복잡한 설정과 오류 처리 필요
-- **Unix 전용 특화**: Unix/Linux 계열 전용으로 최적화되어 최대 성능 달성
-- **성능 최적화**: 의사 터미널 최적화로 Unix 네이티브 성능 활용
+**함수형 접근법:**
+```python
+# 순수 함수로 PTY 설정 생성
+def create_pty_config(shell: str, env: dict) -> PTYConfig:
+    return PTYConfig(shell=shell, env=env)
+
+# Effect로 PTY 생성
+def spawn_pty_effect(config: PTYConfig) -> IOEffect[PTYHandle]:
+    return IOEffect(lambda: ptyprocess.PtyProcess.spawn(config.shell))
+
+# 순수 함수로 읽기 결과 파싱
+def parse_pty_output(data: bytes) -> Result[str, DecodeError]:
+    try:
+        return Ok(data.decode('utf-8'))
+    except UnicodeDecodeError as e:
+        return Err(DecodeError(str(e)))
+```
+
+**함수형 장점:**
+- **테스트 용이성**: PTY 작업을 모킹하여 순수 함수만 테스트
+- **합성성**: 여러 PTY 작업을 함수 합성으로 연결
+- **에러 처리**: Result 모나드로 PTY 에러를 타입 안전하게 처리
 
 #### 대안 고려사항
 - **subprocess**: 단순한 명령 실행에는 충분하지만 터미널 기능 제한적
 - **pexpect**: ptyprocess 기반으로 구축되어 더 높은 수준의 추상화 제공하지만 무거움
 
-### 2. 동기 vs 비동기 I/O 아키텍처
+### 2. 모나드 시스템: 자체 구현 vs 외부 라이브러리
 
-#### 결정: 하이브리드 접근 (동기 + 비동기)
+#### 결정: 자체 구현한 경량 모나드 시스템 사용
 **근거:**
-- **기본 동기 인터페이스**: 단순한 사용 사례를 위한 직관적인 API
-- **비동기 옵션**: 고성능 요구사항과 다중 세션 지원을 위한 async/await
-- **점진적 복잡성**: 사용자가 필요에 따라 복잡성 수준 선택 가능
+- **터미널 도메인 특화**: PTY, ANSI 파싱 등 터미널 특화 요구사항에 최적화
+- **의존성 최소화**: 복잡한 함수형 라이브러리 의존성 없이 핵심 모나드만 구현
+- **학습 곡선 완화**: 프로젝트에 필요한 최소한의 함수형 개념만 도입
+- **성능 최적화**: 터미널 I/O에 특화된 Effect 시스템
 
-**구현 전략:**
+**구현된 모나드들:**
 ```python
-# 동기 인터페이스 (기본)
-pty = PTYWrapper()
-output = pty.read()
+# Result 모나드: 에러 처리
+def parse_ansi_safe(data: str) -> Result[ANSISequence, ParseError]:
+    pass
 
-# 비동기 인터페이스 (고성능)
-async def async_operation():
-    async_pty = AsyncPTYWrapper()
-    output = await async_pty.read_async()
+# Maybe 모나드: null 안전성
+def find_session(id: str) -> Maybe[Session]:
+    pass
+
+# IOEffect 모나드: 부작용 관리
+def read_pty_effect(handle: PTYHandle) -> IOEffect[bytes]:
+    pass
+
+# State 모나드: 상태 변경 함수형 관리
+def update_cursor_position(new_pos: Position) -> State[TerminalState, Unit]:
+    pass
 ```
 
 **트레이드오프:**
-- **코드 복잡성**: 두 가지 인터페이스 유지 관리
-- **성능 최적화**: 상황에 맞는 최적의 성능 제공
-- **학습 곡선**: 개발자가 두 패러다임 모두 이해 필요
+- **기능 제한**: 완전한 함수형 라이브러리 대비 기능 제한
+- **유지보수**: 자체 구현 모나드의 버그 수정 및 최적화 필요
+- **장점**: 프로젝트 요구사항에 맞춘 최적화, 학습 용이성
 
-### 3. 데이터 검증: Pydantic vs dataclasses
+### 3. 상태 관리: 이벤트 소싱 vs 전통적 상태 관리
 
-#### 결정: Pydantic 사용
+#### 결정: 이벤트 소싱 패턴 채택
 **근거:**
-- **런타임 검증**: 설정과 데이터의 실시간 검증으로 버그 조기 발견
-- **자동 직렬화**: JSON/YAML 설정 파일과의 원활한 통합
-- **타입 변환**: 자동 타입 변환으로 사용자 편의성 향상
-- **문서화**: 스키마 자동 생성으로 API 문서화 개선
+- **불변성**: 모든 이벤트가 불변이므로 동시성 문제 원천 차단
+- **시간 여행 디버깅**: 과거 상태로 되돌아가서 버그 재현 가능
+- **감사 추적**: 모든 상태 변경이 이벤트로 기록되어 완벽한 추적 가능
+- **함수형 호환**: 상태는 이벤트들의 fold 결과로만 존재
+
+**구현 전략:**
+```python
+# 불변 이벤트
+@dataclass(frozen=True)
+class KeyboardEvent:
+    timestamp: datetime
+    key: str
+    modifiers: frozenset[str]
+
+# 이벤트 저장소
+@dataclass(frozen=True)
+class EventStore:
+    events: tuple[Event, ...]
+
+# 상태 재구성
+def fold_events(events: tuple[Event, ...]) -> TerminalState:
+    return functools.reduce(apply_event, events, TerminalState.initial())
+```
 
 **트레이드오프:**
-- **성능 오버헤드**: dataclasses보다 느린 객체 생성
-- **의존성 추가**: 외부 라이브러리 의존성 증가
-- **메모리 사용량**: 추가 메타데이터로 인한 메모리 사용량 증가
+- **메모리 사용량**: 모든 이벤트 저장으로 메모리 사용량 증가
+- **복잡성**: 이벤트 설계와 상태 재구성 로직 복잡
+- **장점**: 버그 추적 용이성, 완벽한 상태 재현, 동시성 안전성
+
+### 4. 불변 데이터 구조: Pydantic + dataclasses vs 순수 dataclasses
+
+#### 결정: Pydantic 기반 불변 모델 사용
+**근거:**
+- **불변성 강제**: `frozen=True`와 Pydantic의 불변 설정으로 함수형 원칙 준수
+- **타입 안전성**: 런타임 타입 검증으로 순수 함수의 입력 보장
+- **함수형 호환**: 불변 객체는 순수 함수의 인자와 반환값으로 안전하게 사용
+- **직렬화 지원**: 이벤트 소싱에서 이벤트 직렬화/역직렬화 지원
+
+**함수형 활용:**
+```python
+@dataclass(frozen=True)
+class TerminalState:
+    cursor_position: tuple[int, int]
+    buffer_content: bytes
+    window_size: tuple[int, int]
+
+    @classmethod
+    def initial(cls) -> 'TerminalState':
+        return cls(
+            cursor_position=(0, 0),
+            buffer_content=b'',
+            window_size=(80, 24)
+        )
+
+# 상태 변경은 새 인스턴스 생성
+def move_cursor(state: TerminalState, new_pos: tuple[int, int]) -> TerminalState:
+    return dataclasses.replace(state, cursor_position=new_pos)
+```
+
+**트레이드오프:**
+- **메모리 오버헤드**: 상태 변경 시마다 새 객체 생성
+- **성능 고려**: 불변 객체 생성 비용 vs 동시성 안전성
+- **장점**: 함수형 원칙 준수, 버그 감소, 동시성 안전성
+
+### 5. 테스트 전략: Property-Based Testing vs Unit Testing
+
+#### 결정: Property-Based Testing 우선, Unit Testing 보완
+**근거:**
+- **순수 함수 검증**: 순수 함수는 속성 기반 테스트로 완벽하게 검증 가능
+- **경계 조건 자동 발견**: Hypothesis가 자동으로 엣지 케이스 생성
+- **모나드 법칙 검증**: 수학적 법칙을 테스트로 검증하여 정확성 보장
+- **회귀 방지**: 속성이 깨지면 즉시 감지 가능
+
+**구현 전략:**
+```python
+from hypothesis import given, strategies as st
+
+# 순수 함수의 속성 테스트
+@given(st.text())
+def test_ansi_parsing_idempotent(text: str):
+    parsed = parse_ansi_sequence(text)
+    reconstructed = reconstruct_ansi_sequence(parsed)
+    assert reconstructed == text
+
+# 모나드 법칙 테스트
+@given(st.integers())
+def test_result_monad_left_identity(value: int):
+    f = lambda x: Result.ok(x * 2)
+    assert Result.ok(value).bind(f) == f(value)
+
+# Effect 테스트 (모킹)
+def test_pty_read_effect():
+    mock_effect = IOEffect(lambda: b"test_data")
+    result = pty_pipeline(mock_effect)
+    assert result.unwrap() == expected_result
+```
+
+**트레이드오프:**
+- **학습 곡선**: Property-based testing 개념 학습 필요
+- **테스트 작성 시간**: 초기 속성 정의 시간 vs 장기적 유지보수 비용
+- **장점**: 더 많은 버그 발견, 자동화된 테스트 케이스 생성
 
 ### 4. UI 프레임워크: Rich vs Click
 
